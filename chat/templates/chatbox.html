@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Chat Box</title>
+  <style>
+    #messages {
+      border: 1px solid #333;
+      height: 300px;
+      overflow-y: scroll;
+      padding: 10px;
+      margin-bottom: 10px;
+    }
+    #controls {
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Chat with <span id="partner"></span></h1>
+  <div id="messages"></div>
+  <form id="message-form">
+    <input type="text" id="message-input" placeholder="Type your message" required>
+    <button type="submit">Send</button>
+  </form>
+  <div id="controls">
+    <button id="leave-chat">Leave Chat</button>
+  </div>
+
+  <script>
+    // Retrieve the chat session details from localStorage (set when matched)
+    const chatId = localStorage.getItem("chat_id");
+    const token = localStorage.getItem("token");
+    const partner = localStorage.getItem("partner");
+    document.getElementById("partner").innerText = partner || "Unknown";
+
+    // Function to fetch messages from the server
+    async function fetchMessages() {
+      const response = await fetch(`/chat/get-messages/${chatId}/`, {
+        headers: { "Authorization": "Token " + token }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        const messagesDiv = document.getElementById("messages");
+        messagesDiv.innerHTML = "";
+        data.messages.forEach(msg => {
+          const p = document.createElement("p");
+          p.innerText = `${msg.sender}: ${msg.text} (${msg.timestamp})`;
+          messagesDiv.appendChild(p);
+        });
+        // Scroll to the bottom
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+      }
+    }
+
+    // Set up the form submission to send a message
+    document.getElementById("message-form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const messageText = document.getElementById("message-input").value;
+      const response = await fetch("/chat/send-message/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Token " + token
+        },
+        body: JSON.stringify({ chat_id: chatId, message: messageText })
+      });
+      const result = await response.json();
+      console.log(result);
+      document.getElementById("message-input").value = "";
+      fetchMessages(); // Refresh messages after sending
+    });
+
+    // Poll for new messages every 2 seconds
+    const messagesInterval = setInterval(fetchMessages, 2000);
+    // Initial fetch of messages
+    fetchMessages();
+
+    // Set up the Leave Chat button
+    document.getElementById("leave-chat").addEventListener("click", async () => {
+      // Confirm the user's intent
+      if (!confirm("Are you sure you want to leave the chat?")) return;
+
+      const response = await fetch("/chat/leave-chat/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Token " + token
+        }
+      });
+      const result = await response.json();
+      alert(result.message);
+      // Clear chat-related details and stop polling
+      localStorage.removeItem("chat_id");
+      localStorage.removeItem("partner");
+      clearInterval(messagesInterval);
+      // Redirect to the homepage or auth page
+      window.location.href = "/";
+    });
+  </script>
+</body>
+</html>

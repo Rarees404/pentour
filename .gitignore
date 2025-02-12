@@ -1,21 +1,57 @@
+# Virtual environment
 venv/
+ENV/
+env/
+
+# Python bytecode files and caches
 *.pyc
-__pycache__/
 *.pyo
 *.pyd
+__pycache__/
+*.py[cod]
+
+# Distribution / packaging
 .Python
+build/
+develop-eggs/
+dist/
+eggs/
+.eggs/
+*.egg-info/
+pip-wheel-metadata/
+*.egg
+
+# Local SQLite database
 db.sqlite3
 *.sqlite3
+
+# Media files (if you store uploads locally)
 media/
+
+# Collected static files
 staticfiles/
 static/
+
+# Environment variables and secret settings
 .env
-.DS_Store
+local_settings.py
+
+# Logs and temporary files
 *.log
 *.swp
 *.swo
+*.bak
+
+# IDEs and editors
 .idea/
 .vscode/
+.ropeproject/
+.mypy_cache/
 __pycache__/
-*.bak
+
+# OS-specific files
+.DS_Store
+
+# Miscellaneous
+ls_recursive.txt
 
