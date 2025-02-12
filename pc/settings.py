@@ -157,7 +157,6 @@ REST_FRAMEWORK = {
     ]
 }
 
-# Force requests to https
 # Force all requests to be redirected to HTTPS
 SECURE_SSL_REDIRECT = True
 
