@@ -157,3 +157,19 @@ REST_FRAMEWORK = {
     ]
 }
 
+# Force requests to https
+# Force all requests to be redirected to HTTPS
+SECURE_SSL_REDIRECT = True
+
+# If you're behind a reverse proxy (e.g., Nginx), set the following header:
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+# HTTP Strict Transport Security (HSTS) settings
+SECURE_HSTS_SECONDS = 31536000  # 1 year in seconds
+SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+SECURE_HSTS_PRELOAD = True
+
+# Optionally, ensure cookies are only sent over HTTPS
+SESSION_COOKIE_SECURE = True
+CSRF_COOKIE_SECURE = True
+
