@@ -9,7 +9,7 @@ Welcome to the **Penco** project! This guide is designed to help you—our front
 The project is built with Django and has the following structure:
 
 ```
-penco/
+pentour/
 ├── chat/
 │   ├── templates/       # HTML templates (e.g., auth.html, index.html, chatbox.html)
 │   ├── static/          # (Optional) App-specific static files can be placed here.
@@ -51,7 +51,7 @@ For assets specific to an app (like chat-related images or styles):
 1. **Create a Static Folder in the App:**  
    Inside the **chat** app, create a directory structure like this:
    ```
-   penco/
+   pentour/
      └── chat/
          ├── static/
          │   └── chat/
@@ -76,7 +76,7 @@ For assets shared across the entire project:
 1. **Create a Global Static Folder:**  
    At the root of your project (next to `manage.py`), create a folder named `static/`:
    ```
-   penco/
+   pentour/
      ├── static/
      │   ├── css/
      │   ├── js/
