@@ -30,7 +30,6 @@ media/
 
 # Collected static files
 staticfiles/
-static/
 
 # Environment variables and secret settings
 .env
