@@ -28,5 +28,7 @@ Install Django (and any other dependencies) via pip install -r requirements.txt
 
 11- go to 3ba8-176-234-131-85.ngrok-free.app
 
+Note: If you get bad request errors try removing the s form https and refresh.
+
 
 
