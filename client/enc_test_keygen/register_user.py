@@ -32,18 +32,18 @@ def register_user(username, password):
             print("✅ User registered successfully!")
             return True
         else:
-            print(f"❌ Registration Error: {response.status_code}")
+            print(f"Registration Error: {response.status_code}")
             print(f"Server Response: {response.text}")
             return False
 
     except requests.RequestException as e:
-        print(f"🔴 Network Error: {e}")
+        print(f"Network Error: {e}")
         return False
     except FileNotFoundError as e:
-        print(f"🔑 Key Error: {e}")
+        print(f"Key Error: {e}")
         return False
     except json.JSONDecodeError:
-        print("❌ Invalid JSON response from server")
+        print("Invalid JSON response from server")
         return False
 
 if __name__ == "__main__":

@@ -26,7 +26,7 @@ public_pem = private_key.public_key().public_bytes(
 with open("public_key.pem", "wb") as public_file:
     public_file.write(public_pem)
 
-print("🔑 RSA Key Pair Generated!")
-print("✅ Private Key: private_key.pem (DO NOT SHARE)")
-print("✅ Public Key: public_key.pem (Send to Server)")
+print("RSA Key Pair Generated!")
+print("Private Key: private_key.pem (DO NOT SHARE)")
+print("Public Key: public_key.pem (Send to Server)")
 

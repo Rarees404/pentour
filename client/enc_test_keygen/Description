@@ -1,0 +1,61 @@
+Basic concept is a function that encrypts messages, it is hardcoded for test use.
+
+//try pip install cryptography
+
+
+basicconcept.py
+It is a class that takes and hardcoded message and prints the result.
+
+Encryption Approach
+The encryption solution is built using the cryptography library in Python, implementing asymmetric RSA encryption. The key components are:
+Key Generation
+
+
+Uses 4096-bit RSA key pair for strong security
+Automatically generates both public and private keys
+Keys are generated using rsa.generate_private_key() method
+Public exponent set to 65537 (standard secure value)
+
+
+Encryption Process
+
+
+1. Converts plain text message to bytes
+2. Uses OAEP (Optimal Asymmetric Encryption Padding) for security
+3. Applies SHA256 hashing algorithm for padding
+4. Encrypts message using public key
+5. Encodes encrypted bytes to base64 for safe transmission
+
+
+Decryption Process
+
+
+1. Decodes base64 encrypted message
+2. Uses private key to decrypt
+3. Applies same OAEP padding with SHA256
+4. Converts decrypted bytes back to plain text
+
+
+Key Security Features
+
+
+1. No password encryption on private key (for simplicity)
+2. Keys can be saved to file system
+3. Supports dynamic key generation and management
+
+
+Error Handling
+
+
+Comprehensive try-except blocks
+Handles encryption and decryption errors
+Provides informative error messages
+
+
+Demonstration Approach
+
+
+Created a MessageEncryptor class
+Hardcoded test messages
+Automatically saves generated keys
+Demonstrates full encryption-decryption workflow
