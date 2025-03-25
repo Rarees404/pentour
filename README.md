@@ -22,9 +22,9 @@ Install Django (and any other dependencies) via pip install -r requirements.txt
 
 8- run python manage.py runserver
 
-9- run ngrok http 8000
+9- open a new terminal and run ngrok http 8000
 
-10- add the forwarding link ex:3ba8-176-234-131-85.ngrok-free.app to allowed hosts at settings.
+10- add the forwarding link ex:3ba8-176-234-131-85.ngrok-free.app to allowed hosts at settings(don't forget to save).
 
 11- go to 3ba8-176-234-131-85.ngrok-free.app
 
