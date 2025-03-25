@@ -77,12 +77,13 @@ ASGI_APPLICATIOn='pc.asgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
+# Change this based on your database credentials to host it locally!
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.environ.get('POSTGRES_DB', 'c_name'),
-        'USER': os.environ.get('POSTGRES_USER', 'cemandrewgultekin'),  # Change from 'user'
-        'PASSWORD': os.environ.get('POSTGRES_PASSWORD', 'password'),
+        'NAME': os.environ.get('POSTGRES_DB', 'yunusdb'),
+        'USER': os.environ.get('POSTGRES_USER', 'yunus_group'),  # Change from 'user'
+        'PASSWORD': os.environ.get('POSTGRES_PASSWORD', '1234'),
         'HOST': os.environ.get('POSTGRES_HOST', 'localhost'),
         'PORT': os.environ.get('POSTGRES_PORT', '5432'),
     }
