@@ -2,10 +2,66 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Welcome to Secure Chat</title>
+    <title>Secure Chat - Home</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: #f4f4f4;
+            color: #333;
+            text-align: center;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            padding: 20px;
+        }
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+        p {
+            font-size: 1.2rem;
+            margin-bottom: 20px;
+        }
+        .btn {
+            display: inline-block;
+            padding: 12px 24px;
+            font-size: 1rem;
+            color: #fff;
+            background: #007bff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            text-decoration: none;
+            transition: 0.3s;
+        }
+        .btn:hover {
+            background: #0056b3;
+        }
+        .footer {
+            position: absolute;
+            bottom: 10px;
+            width: 100%;
+            font-size: 0.9rem;
+            color: #666;
+        }
+    </style>
 </head>
 <body>
-    <h1>Welcome to Secure Chat!</h1>
-    <p><a href="/chat/">Go to Chat</a></p>
+    <div class="container">
+        <h1>Welcome to Secure Chat</h1>
+        <p>Chat anonymously with end-to-end encryption.</p>
+        <a href="/chat/" class="btn">Enter Chat</a>
+    </div>
+    <div class="footer">
+        <p>&copy; 2025 Secure Chat. All rights reserved.</p>
+    </div>
 </body>
 </html>
