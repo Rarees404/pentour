@@ -4,31 +4,41 @@ import json
 
 def register_user(username, password):
     try:
-        # Load public key
-        public_key_path = os.path.join('keys', 'public_key.pem')
+        # -----------------------------------------
+        # 🔑 Load Public Key (used for secure identity)
+        # -----------------------------------------
+        public_key_path = os.path.join('keys', 'public_key.pem')  # Path to public key file
 
+        # Check if public key file exists
         if not os.path.exists(public_key_path):
             raise FileNotFoundError("Public key not found. Generate keys first!")
 
+        # Read public key from file
         with open(public_key_path, "r") as file:
             public_key = file.read()
 
-        # User Registration Data
+        # -----------------------------------------
+        # 📦 Prepare User Registration Data
+        # -----------------------------------------
         data = {
             "username": username,
             "password": password,
-            "public_key": public_key.strip()  # Remove any trailing whitespace
+            "public_key": public_key.strip()  # Remove any trailing whitespace/newlines
         }
 
-        # Send Data to Django Server
+        # -----------------------------------------
+        # 🌐 Send POST Request to Django Server
+        # -----------------------------------------
         response = requests.post(
-            "http://127.0.0.1:8000/chat/register/",
-            json=data,
-            headers={'Content-Type': 'application/json'}
+            "http://127.0.0.1:8000/chat/register/",  # Server endpoint
+            json=data,                                # Send data as JSON
+            headers={'Content-Type': 'application/json'}  # Set proper content type
         )
 
-        # Enhanced error handling
-        if response.status_code == 201:
+        # -----------------------------------------
+        # ✅ Handle Server Response
+        # -----------------------------------------
+        if response.status_code == 201:  # HTTP 201 = Created
             print("✅ User registered successfully!")
             return True
         else:
@@ -36,6 +46,9 @@ def register_user(username, password):
             print(f"Server Response: {response.text}")
             return False
 
+    # -----------------------------------------
+    # ⚠️ Error Handling for Various Failure Cases
+    # -----------------------------------------
     except requests.RequestException as e:
         print(f"Network Error: {e}")
         return False
@@ -46,5 +59,8 @@ def register_user(username, password):
         print("Invalid JSON response from server")
         return False
 
+# -----------------------------------------
+# 🚀 Run Script if Called Directly
+# -----------------------------------------
 if __name__ == "__main__":
     register_user("alice", "strongpassword")
