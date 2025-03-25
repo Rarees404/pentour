@@ -77,6 +77,7 @@ ASGI_APPLICATIOn='pc.asgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
+# Change this based on your database credentials to host it locally!
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',

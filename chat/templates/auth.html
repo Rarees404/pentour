@@ -204,6 +204,7 @@ document.getElementById("register-form").addEventListener("submit", async (event
       const result = await response.json();
       if (response.ok) {
         localStorage.setItem("token", result.token);
+        localStorage.setItem("username", username);
         printStatus("Login successful!");
       } else {
         printStatus("Login failed: " + result.message);
@@ -322,6 +323,7 @@ document.getElementById("join-queue").addEventListener("click", async () => {
         const result = await response.json();
         if (response.ok && result.chat_id && result.partner) {
           localStorage.setItem("chat_id", result.chat_id);
+          localStorage.setItem("username", username);
           localStorage.setItem("partner", result.partner);
           clearInterval(pollInterval);
           window.location.href = "/chat/chatbox/";
