@@ -1,7 +1,7 @@
 from django.urls import path
 from .views import (
     RegisterUserView, LoginView, MatchUserView, CheckChatView, LeaveChatView, auth_page,
-    chat_box, SendMessageView, GetMessagesView  # import the new views
+    chat_box, SendMessageView, GetMessagesView, LeaveQueueView  # import the new views
 )
 
 urlpatterns = [
@@ -10,6 +10,7 @@ urlpatterns = [
     path("match/", MatchUserView.as_view(), name="match"),
     path("check-chat/", CheckChatView.as_view(), name="check-chat"),
     path("leave-chat/", LeaveChatView.as_view(), name="leave-chat"),
+    path("leave-queue/", LeaveQueueView.as_view(), name="leave-queue"),
     # New endpoints:
     path("send-message/", SendMessageView.as_view(), name="send_message"),
     path("get-messages/<str:chat_id>/", GetMessagesView.as_view(), name="get_messages"),
