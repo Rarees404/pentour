@@ -3,13 +3,82 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Secure Chat - Register/Login</title>
   <style>
-    /* Simple styling for status messages */
+    /* Basic reset and body styling */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: Arial, sans-serif;
+      background: #f0f2f5;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    h1 {
+      margin-bottom: 20px;
+      text-align: center;
+    }
+
+    .container {
+      background: #fff;
+      width: 300px;
+      max-width: 80%;
+      margin-bottom: 20px;
+      padding: 20px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+    }
+
+    .container h2 {
+      margin-bottom: 15px;
+      text-align: center;
+      color: #333;
+    }
+
+    form {
+      display: flex;
+      flex-direction: column;
+    }
+
+    form input {
+      margin: 8px 0;
+      padding: 10px;
+      border-radius: 3px;
+      border: 1px solid #ccc;
+      font-size: 14px;
+    }
+
+    button {
+      margin-top: 10px;
+      padding: 10px;
+      font-size: 14px;
+      border: none;
+      border-radius: 3px;
+      cursor: pointer;
+      background-color: #007bff;
+      color: #fff;
+      transition: background-color 0.3s ease;
+    }
+
+    button:hover {
+      background-color: #0056b3;
+    }
+
     #status {
       margin-top: 10px;
       color: #0066cc;
       font-weight: bold;
+      text-align: center;
+      min-height: 1.2em;
     }
   </style>
 </head>
@@ -34,12 +103,43 @@
   <!-- A div to print status messages -->
   <div id="status"></div>
 
+  <h1>Secure Chat</h1>
+
+  <!-- Registration Container -->
+  <div class="container">
+    <h2>Register</h2>
+    <form id="register-form">
+      <input type="text" id="username" placeholder="Username" required />
+      <input type="password" id="password" placeholder="Password" required />
+      <button type="submit">Register</button>
+    </form>
+  </div>
+
+  <!-- Login Container -->
+  <div class="container">
+    <h2>Login</h2>
+    <form id="login-form">
+      <input type="text" id="login-username" placeholder="Username" required />
+      <input type="password" id="login-password" placeholder="Password" required />
+      <button type="submit">Login</button>
+    </form>
+  </div>
+
+  <!-- Queue Container -->
+  <div class="container">
+    <h2>Chat Queue</h2>
+    <button id="join-queue">Join Queue</button>
+    <div id="status"></div>
+  </div>
+
   <script>
     const statusDiv = document.getElementById("status");
 
     // Function to update the status message on the screen
     function printStatus(message) {
+    function printStatus(message, color = "#0066cc") {
       statusDiv.innerText = message;
+      statusDiv.style.color = color;
     }
 
     // Registration event listener
@@ -47,15 +147,31 @@
       event.preventDefault();
       const username = document.getElementById("username").value;
       const password = document.getElementById("password").value;
+function resetInputs() {
+  document.querySelectorAll("input").forEach((input) => {
+    input.value = ""; // Clears input values
+    input.placeholder = input.getAttribute("placeholder"); // Ensures placeholder remains
+  });
+}
 
       const response = await fetch("/chat/register/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password })
       });
+// Updated Registration Event Listener
+document.getElementById("register-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const username = document.getElementById("username").value;
+  const password = document.getElementById("password").value;
 
       const result = await response.json();
       printStatus(result.message || "Registration successful!");
+  try {
+    const response = await fetch("/chat/register/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password }),
     });
 
     // Login event listener
@@ -63,13 +179,28 @@
       event.preventDefault();
       const username = document.getElementById("login-username").value;
       const password = document.getElementById("login-password").value;
+    const result = await response.json();
+    console.log(result); // Debugging line to check the actual response from the server
 
       const response = await fetch("/chat/login/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password })
       });
+    if (response.ok) {
+      printStatus("Registration successful!", "green");
+      resetInputs();
+    } else if (result.message && result.message.toLowerCase().includes("username already exists")) {
+      printStatus("This username is taken!", "red");
+    } else {
+      printStatus(result.message || "Registration failed.", "red");
+    }
+  } catch (error) {
+    printStatus("An error occurred during registration.", "red");
+  }
+});
 
+<<<<<<< Updated upstream
       const result = await response.json();
       if (response.ok) {
         localStorage.setItem("token", result.token);
@@ -77,6 +208,19 @@
       } else {
         printStatus("Login failed: " + result.message);
       }
+=======
+// Updated Login Event Listener
+document.getElementById("login-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const username = document.getElementById("login-username").value;
+  const password = document.getElementById("login-password").value;
+
+  try {
+    const response = await fetch("/chat/login/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password }),
+>>>>>>> Stashed changes
     });
 
     // Join Queue event listener with polling for a match
@@ -86,6 +230,18 @@
         printStatus("You must be logged in to join the queue.");
         return;
       }
+    const result = await response.json();
+    if (response.ok) {
+      localStorage.setItem("token", result.token);
+      printStatus("Login successful!", "green");
+      resetInputs();
+    } else {
+      printStatus("Login failed: " + (result.message || "Unknown error."), "red");
+    }
+  } catch (error) {
+    printStatus("An error occurred during login.", "red");
+  }
+});
 
       const response = await fetch("/chat/match/", {
         method: "POST",
@@ -94,6 +250,13 @@
           "Authorization": "Token " + token 
         }
       });
+// Updated Join Queue Event Listener
+document.getElementById("join-queue").addEventListener("click", async () => {
+  const token = localStorage.getItem("token");
+  if (!token) {
+    printStatus("You must be logged in to join the queue.", "red");
+    return;
+  }
 
       const result = await response.json();
       if (result.chat_id && result.partner) {
@@ -105,7 +268,31 @@
         printStatus(result.message || "Waiting for a match...");
         pollForMatch();
       }
+  try {
+    const response = await fetch("/chat/match/", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": "Token " + token,
+      },
     });
+
+    const result = await response.json();
+
+    if (result.chat_id && result.partner) {
+      localStorage.setItem("chat_id", result.chat_id);
+      localStorage.setItem("partner", result.partner);
+      window.location.href = "/chat/chatbox/";
+    } else {
+      printStatus(result.message || "Waiting for a match...");
+      resetInputs();
+      pollForMatch();
+    }
+  } catch (error) {
+    printStatus("An error occurred while trying to join the queue.", "red");
+  }
+});
+
 
     // Function to poll /chat/check-chat/ for a match every 3 seconds
     async function pollForMatch() {
@@ -115,7 +302,22 @@
           headers: {
             "Content-Type": "application/json",
             "Authorization": "Token " + token
+        try {
+          const response = await fetch("/chat/check-chat/", {
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": "Token " + token,
+            },
+          });
+          const result = await response.json();
+
+          if (response.ok && result.chat_id && result.partner) {
+            localStorage.setItem("chat_id", result.chat_id);
+            localStorage.setItem("partner", result.partner);
+            clearInterval(pollInterval);
+            window.location.href = "/chat/chatbox/";
           }
+<<<<<<< Updated upstream
         });
         const result = await response.json();
         if (response.ok && result.chat_id && result.partner) {
@@ -123,10 +325,15 @@
           localStorage.setItem("partner", result.partner);
           clearInterval(pollInterval);
           window.location.href = "/chat/chatbox/";
+=======
+        } catch (error) {
+          printStatus("Polling error: " + error.message, "red");
+>>>>>>> Stashed changes
         }
       }, 3000);
     }
   </script>
+
 </body>
 </html>
 

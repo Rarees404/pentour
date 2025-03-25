@@ -25,7 +25,7 @@ SECRET_KEY = 'django-insecure-ky^56xg5&kg2&8ualp++lplthx@*x7s%g)7eyhq*&(@bohhcle
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False 
 
-ALLOWED_HOSTS = ["cemtest1.xyz", "178.238.108.26", "localhost", "127.0.0.1","10.10.9.108","3ba8-176-234-131-85.ngrok-free.app"]
+ALLOWED_HOSTS = ["cemtest1.xyz", "178.238.108.26", "localhost", "127.0.0.1","10.10.9.108", "188.91.214.104"]
 
 # Application definition
 INSTALLED_APPS = [
@@ -80,9 +80,9 @@ ASGI_APPLICATIOn='pc.asgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.environ.get('POSTGRES_DB', 'c_name'),
-        'USER': os.environ.get('POSTGRES_USER', 'cemandrewgultekin'),  # Change from 'user'
-        'PASSWORD': os.environ.get('POSTGRES_PASSWORD', 'password'),
+        'NAME': os.environ.get('POSTGRES_DB', 'myproject_db'),
+        'USER': os.environ.get('POSTGRES_USER', 'myproject_user'),  # Change from 'user'
+        'PASSWORD': os.environ.get('POSTGRES_PASSWORD', 'mysecretpassword'),
         'HOST': os.environ.get('POSTGRES_HOST', 'localhost'),
         'PORT': os.environ.get('POSTGRES_PORT', '5432'),
     }

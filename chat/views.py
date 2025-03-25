@@ -6,6 +6,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status, permissions
 from rest_framework.authtoken.models import Token
+from .models import Message
 from rest_framework.generics import CreateAPIView
 from .serializers import UserSerializer
 from .models import Message
@@ -27,9 +28,28 @@ def chat_box(request):
     return render(request, "chatbox.html")
 
 # User Registration View
+# Explicitly use the custom User model (chat_user)
+User = get_user_model()
+
 class RegisterUserView(CreateAPIView):
     queryset = get_user_model().objects.all()
+    queryset = User.objects.all()
     serializer_class = UserSerializer
+
+    def create(self, request, *args, **kwargs):
+        username = request.data.get("username")
+        password = request.data.get("password")
+
+        # Check if the username already exists in the correct User table
+        if User.objects.filter(username=username).exists():
+            return Response({"message": "Username already exists"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Create new user
+        user = User(username=username)
+        user.set_password(password)  # Securely hash the password
+        user.save()
+
+        return Response({"message": "Registration successful!"}, status=status.HTTP_201_CREATED)
 
 # User Login View
 class LoginView(APIView):
