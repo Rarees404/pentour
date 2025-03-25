@@ -149,15 +149,12 @@
           const data = await response.json();
           messagesDiv.innerHTML = '';
 
-          // Update partner name from server response if available
-          if (data.partner) {
-            partnerNameSpan.textContent = data.partner;
-            localStorage.setItem('partner', data.partner);
-          }
+          // Save current user ID from API response
+          const currentUser = data.current_user;
 
           data.messages.forEach(msg => {
             const messageEl = document.createElement('div');
-            const isCurrentUser = msg.is_current_user;
+            const isCurrentUser = msg.sender_username === currentUser; // ✅ Fix: Compare usernames
 
             messageEl.className = `message ${isCurrentUser ? 'current-user' : 'other-user'}`;
             messageEl.innerHTML = `
@@ -175,6 +172,7 @@
         console.error('Error fetching messages:', error);
       }
     }
+
 
     // Send message
     messageForm.addEventListener('submit', async (e) => {
