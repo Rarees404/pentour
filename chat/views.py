@@ -12,6 +12,13 @@ from .serializers import UserSerializer
 from .models import Message
 from threading import Lock
 import time
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), 'chat/client/enc_test_keygen/basicconcept.py')))
+from chat.client.enc_test_keygen.basicconcept import MessageEncryptor
+
+
+
 # In-memory storage for matchmaking; in production, consider a persistent solution.
 queue = []        # Stores waiting users for chat sessions
 active_chats = {} # Maps chat IDs to a tuple of user objects (user1, user2)
@@ -161,15 +168,21 @@ class SendMessageView(APIView):
     def post(self, request):
         message_text = request.data.get("message")
         chat_id = request.data.get("chat_id")
+
         if chat_id not in active_chats:
             return Response({"message": "Invalid chat ID."}, status=status.HTTP_400_BAD_REQUEST)
+
         user1, user2 = active_chats[chat_id]
         if request.user not in (user1, user2):
             return Response({"message": "You are not a participant of this chat."}, status=status.HTTP_403_FORBIDDEN)
-        # Determine receiver based on who is sending the message
+
         receiver = user2 if request.user == user1 else user1
-        Message.objects.create(sender=request.user, receiver=receiver, encrypted_text=message_text)
+        encryptor = MessageEncryptor()
+        encrypted_text = encryptor.encrypt_message(message_text)
+        Message.objects.create(sender=request.user, receiver=receiver, encrypted_text=encrypted_text)
+
         return Response({"message": "Message sent."}, status=status.HTTP_200_OK)
+
 
 # Get Messages View - retrieves all messages for a given chat session
 class GetMessagesView(APIView):
@@ -187,15 +200,22 @@ class GetMessagesView(APIView):
             Q(sender=user1, receiver=user2) | Q(sender=user2, receiver=user1)
         ).order_by('timestamp')
 
+        decryptor = MessageEncryptor()
         messages_data = []
+
         for msg in messages:
+            try:
+                decrypted_text = decryptor.decrypt_message(msg.encrypted_text)
+            except Exception as e:
+                decrypted_text = "[Decryption failed]"
+
             messages_data.append({
                 'id': msg.id,
                 'sender_id': msg.sender.id,
-                'sender_username': msg.sender.username,  # Ensure username is included
-                'text': msg.encrypted_text,
+                'sender_username': msg.sender.username,
+                'text': decrypted_text,
                 'timestamp': msg.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
-                'is_current_user': msg.sender == request.user  # Add ownership flag
+                'is_current_user': msg.sender == request.user
             })
 
         return Response({
