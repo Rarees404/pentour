@@ -81,9 +81,9 @@ ASGI_APPLICATIOn='pc.asgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.environ.get('POSTGRES_DB', 'yunusdb'),
-        'USER': os.environ.get('POSTGRES_USER', 'yunus_group'),  # Change from 'user'
-        'PASSWORD': os.environ.get('POSTGRES_PASSWORD', '1234'),
+        'NAME': os.environ.get('POSTGRES_DB', 'my_database'),
+        'USER': os.environ.get('POSTGRES_USER', 'myproject_user'),  # Change from 'user'
+        'PASSWORD': os.environ.get('POSTGRES_PASSWORD', 'mysecretpassword'),
         'HOST': os.environ.get('POSTGRES_HOST', 'localhost'),
         'PORT': os.environ.get('POSTGRES_PORT', '5432'),
     }

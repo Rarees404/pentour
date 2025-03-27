@@ -138,34 +138,42 @@
       }
     }
 
-    // Fetch and display messages
-    async function fetchMessages() {
+        // Fetch and display messages
+        async function fetchMessages() {
       try {
         const response = await fetch(`/chat/get-messages/${chatId}/`, {
           headers: { 'Authorization': 'Token ' + token }
         });
 
+        // 🔥 Partner left? Exit gracefully
+        if (response.status === 404) {
+          alert("Your chat partner has left the chat.");
+          localStorage.removeItem('chat_id');
+          localStorage.removeItem('partner');
+          clearInterval(pollInterval);
+          window.location.href = '/';
+          return;
+        }
+
         if (response.ok) {
           const data = await response.json();
           messagesDiv.innerHTML = '';
 
-          // Update partner name from server response if available
+          // Update partner name from server
           if (data.partner) {
             partnerNameSpan.textContent = data.partner;
             localStorage.setItem('partner', data.partner);
           }
 
           data.messages.forEach(msg => {
+            const isCurrentUser = msg.sender_username === data.current_user;
             const messageEl = document.createElement('div');
-            const isCurrentUser = msg.is_current_user;
-
             messageEl.className = `message ${isCurrentUser ? 'current-user' : 'other-user'}`;
             messageEl.innerHTML = `
               <div class="message-username">${isCurrentUser ? 'You' : msg.sender_username}</div>
               <div>${msg.text}</div>
               <div class="message-time">${msg.timestamp}</div>
             `;
-
             messagesDiv.appendChild(messageEl);
           });
 
@@ -175,6 +183,7 @@
         console.error('Error fetching messages:', error);
       }
     }
+
 
     // Send message
     messageForm.addEventListener('submit', async (e) => {
@@ -204,6 +213,7 @@
       }
     });
 
+
     // Leave chat
     leaveChatBtn.addEventListener('click', async () => {
       if (!confirm('Are you sure you want to leave this chat?')) return;
@@ -217,16 +227,20 @@
           }
         });
 
-        if (response.ok) {
+        // ✅ Regardless of whether the chat exists, navigate away and clean up
+        if (response.ok || response.status === 400) {
           localStorage.removeItem('chat_id');
           localStorage.removeItem('partner');
           clearInterval(pollInterval);
           window.location.href = '/';
+        } else {
+          console.error("Unexpected error leaving chat");
         }
       } catch (error) {
         console.error('Error leaving chat:', error);
       }
     });
+
 
     // Poll for new messages every 2 seconds
     const pollInterval = setInterval(fetchMessages, 2000);
