@@ -1,48 +1,48 @@
 # Pentour
 
-pengincontour.xyz
+[https://pengincontour.xyz](https://pengincontour.xyz)
 
-1-Install Python & Django and Nrok
+Pentour is an anonymous, real-time chat platform with end-to-end RSA encryption. Messages are always stored encrypted in the database and decrypted using the user's private key before display.
 
-Make sure you have Python installed.
+---
 
-Install Django (and any other dependencies) via pip install -r requirements.txt
+## 🛠 Setup Instructions
 
-2- At settings.py add your public ip at allowed hosts.
+### 1. Install Python, Django, and Ngrok
 
-3- Install PostgreSQL: Make sure PostgreSQL is installed and running on your machine.
+Make sure Python is installed on your machine.  
+Install Django and dependencies using:
 
-4- update username at settings.py Databases
+### 2. Install Requirements TEXT
 
-5- Open pdAdmin4 (it is installed in your device with postgrade)
+Run the command ```pip install -r requirements.txt```
 
-    - Expand server and right click on databases to create a database.
-    - Then scroll down to create a login/group role (right click -> create). Then add a name/password (on definition tab) and give all the previliges (in privileges tab).
+### 3. Install PostgreSQL
 
-6- Then go to settings.py in the project folder and change the data to what you have just set.
-    
-    What it should look like:
+Make sure PostgreSQL is installed and running. **Please do not forget the password you set in the setup, as you need this to launch the databases you set up.**
 
-    DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.environ.get('POSTGRES_DB', 'my_database'),
-        'USER': os.environ.get('POSTGRES_USER', 'myproject_user'),  # Change from 'user'
-        'PASSWORD': os.environ.get('POSTGRES_PASSWORD', 'mysecretpassword'),
-        'HOST': os.environ.get('POSTGRES_HOST', 'localhost'),
-        'PORT': os.environ.get('POSTGRES_PORT', '5432'),
-    }
-}
+``Download``:
+https://www.postgresql.org/download/
 
-7- run python manage.py migrate
+### 4. Create PostgreSQL Database and User
 
-8- run python manage.py runserver
+**- Launch pgAdmin4, then:**
+    **a. Create a new database:**
+    - Expand the server tree
+    - Right-click on "Databases" → Create → Database
+    - Name it as```my_database```
 
-9- go to the link ex: https//190.304304... : 8080
+    **b. Create a login role:**
+    - Scroll to "Login/Group Roles"
+    - Right-click → Create → Login/Group Role (name it as ```myproject_user```)
+    - Go to the Definition tab → set password to ```mysecretpassword```
+    - Go to the Privileges tab → enable all permissions
 
-10- Use different browsers to chat not the same one
+### 4. Apply Migrations and Start the Django Development Server
 
-Note: If you get bad request errors GPT them, easiest way is this.
+**Run the following to set up your database schema:**
+- python manage.py migrate
+- python manage.py runserver
 
-
-
+**You can now access the app at:**
+- http://127.0.0.1:8000/ (as stated in the terminal)
