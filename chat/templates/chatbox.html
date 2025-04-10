@@ -1,102 +1,251 @@
-<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <title>Chat Box</title>
   <style>
-    #messages {
-      border: 1px solid #333;
-      height: 300px;
-      overflow-y: scroll;
-      padding: 10px;
-      margin-bottom: 10px;
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
     }
-    #controls {
-      margin-top: 10px;
+    
+    #chat-header {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    #messages {
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      height: 400px;
+      overflow-y: auto;
+      padding: 15px;
+      margin-bottom: 15px;
+      background: #f9f9f9;
+    }
+
+    .message {
+      margin-bottom: 15px;
+      padding: 12px 16px;
+      border-radius: 18px;
+      max-width: 70%;
+      position: relative;
+    }
+
+    .current-user {
+      background: #007bff;
+      color: white;
+      margin-left: auto;
+      border-bottom-right-radius: 4px;
+    }
+
+    .other-user {
+      background: #e9ecef;
+      margin-right: auto;
+      border-bottom-left-radius: 4px;
+    }
+
+    .message-username {
+      font-weight: bold;
+      font-size: 0.85em;
+      margin-bottom: 5px;
+    }
+
+    .message-time {
+      font-size: 0.75em;
+      opacity: 0.8;
+      margin-top: 5px;
+      display: block;
+    }
+
+    #message-form {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 15px;
+    }
+
+    #message-input {
+      flex-grow: 1;
+      padding: 10px 15px;
+      border: 1px solid #ddd;
+      border-radius: 20px;
+      font-size: 1em;
+    }
+
+    #message-form button {
+      padding: 10px 20px;
+      background: #007bff;
+      color: white;
+      border: none;
+      border-radius: 20px;
+      cursor: pointer;
+    }
+
+    #leave-chat {
+      display: block;
+      width: 100%;
+      padding: 10px;
+      background: #dc3545;
+      color: white;
+      border: none;
+      border-radius: 20px;
+      cursor: pointer;
+      font-size: 1em;
     }
   </style>
 </head>
 <body>
-  <h1>Chat with <span id="partner"></span></h1>
+  <div id="chat-header">
+    <h1>Chat with <span id="partner-name"></span></h1>
+  </div>
+
   <div id="messages"></div>
+
   <form id="message-form">
     <input type="text" id="message-input" placeholder="Type your message" required>
     <button type="submit">Send</button>
   </form>
-  <div id="controls">
-    <button id="leave-chat">Leave Chat</button>
-  </div>
+
+  <button id="leave-chat">Leave Chat</button>
 
   <script>
-    // Retrieve the chat session details from localStorage (set when matched)
-    const chatId = localStorage.getItem("chat_id");
-    const token = localStorage.getItem("token");
-    const partner = localStorage.getItem("partner");
-    document.getElementById("partner").innerText = partner || "Unknown";
+    // Get DOM elements
+    const messagesDiv = document.getElementById('messages');
+    const partnerNameSpan = document.getElementById('partner-name');
+    const messageForm = document.getElementById('message-form');
+    const messageInput = document.getElementById('message-input');
+    const leaveChatBtn = document.getElementById('leave-chat');
 
-    // Function to fetch messages from the server
-    async function fetchMessages() {
-      const response = await fetch(`/chat/get-messages/${chatId}/`, {
-        headers: { "Authorization": "Token " + token }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        const messagesDiv = document.getElementById("messages");
-        messagesDiv.innerHTML = "";
-        data.messages.forEach(msg => {
-          const p = document.createElement("p");
-          p.innerText = `${msg.sender}: ${msg.text} (${msg.timestamp})`;
-          messagesDiv.appendChild(p);
-        });
-        // Scroll to the bottom
-        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    // Get chat data from localStorage
+    const chatId = localStorage.getItem('chat_id');
+    const token = localStorage.getItem('token');
+    const storedPartner = localStorage.getItem('partner');
+
+    // Display partner name
+    partnerNameSpan.textContent = storedPartner || 'Unknown';
+
+    // Get current user ID from token
+    function getCurrentUserId() {
+      try {
+        const payload = token.split('.')[1];
+        const decoded = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
+        return JSON.parse(decoded).user_id;
+      } catch (e) {
+        console.error('Error decoding token:', e);
+        return null;
       }
     }
 
-    // Set up the form submission to send a message
-    document.getElementById("message-form").addEventListener("submit", async (event) => {
-      event.preventDefault();
-      const messageText = document.getElementById("message-input").value;
-      const response = await fetch("/chat/send-message/", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": "Token " + token
-        },
-        body: JSON.stringify({ chat_id: chatId, message: messageText })
-      });
-      const result = await response.json();
-      console.log(result);
-      document.getElementById("message-input").value = "";
-      fetchMessages(); // Refresh messages after sending
+        // Fetch and display messages
+        async function fetchMessages() {
+      try {
+        const response = await fetch(`/chat/get-messages/${chatId}/`, {
+          headers: { 'Authorization': 'Token ' + token }
+        });
+
+        // 🔥 Partner left? Exit gracefully
+        if (response.status === 404) {
+          alert("Your chat partner has left the chat.");
+          localStorage.removeItem('chat_id');
+          localStorage.removeItem('partner');
+          clearInterval(pollInterval);
+          window.location.href = '/';
+          return;
+        }
+
+        if (response.ok) {
+          const data = await response.json();
+          messagesDiv.innerHTML = '';
+
+          // Update partner name from server
+          if (data.partner) {
+            partnerNameSpan.textContent = data.partner;
+            localStorage.setItem('partner', data.partner);
+          }
+
+          data.messages.forEach(msg => {
+            const isCurrentUser = msg.sender_username === data.current_user;
+            const messageEl = document.createElement('div');
+            messageEl.className = `message ${isCurrentUser ? 'current-user' : 'other-user'}`;
+            messageEl.innerHTML = `
+              <div class="message-username">${isCurrentUser ? 'You' : msg.sender_username}</div>
+              <div>${msg.text}</div>
+              <div class="message-time">${msg.timestamp}</div>
+            `;
+            messagesDiv.appendChild(messageEl);
+          });
+
+          messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+      } catch (error) {
+        console.error('Error fetching messages:', error);
+      }
+    }
+
+
+    // Send message
+    messageForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const messageText = messageInput.value.trim();
+      if (!messageText) return;
+
+      try {
+        const response = await fetch('/chat/send-message/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Token ' + token
+          },
+          body: JSON.stringify({
+            chat_id: chatId,
+            message: messageText
+          })
+        });
+
+        if (response.ok) {
+          messageInput.value = '';
+          fetchMessages();
+        }
+      } catch (error) {
+        console.error('Error sending message:', error);
+      }
     });
+
+
+    // Leave chat
+    leaveChatBtn.addEventListener('click', async () => {
+      if (!confirm('Are you sure you want to leave this chat?')) return;
+
+      try {
+        const response = await fetch('/chat/leave-chat/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Token ' + token
+          }
+        });
+
+        // ✅ Regardless of whether the chat exists, navigate away and clean up
+        if (response.ok || response.status === 400) {
+          localStorage.removeItem('chat_id');
+          localStorage.removeItem('partner');
+          clearInterval(pollInterval);
+          window.location.href = '/';
+        } else {
+          console.error("Unexpected error leaving chat");
+        }
+      } catch (error) {
+        console.error('Error leaving chat:', error);
+      }
+    });
+
 
     // Poll for new messages every 2 seconds
-    const messagesInterval = setInterval(fetchMessages, 2000);
-    // Initial fetch of messages
+    const pollInterval = setInterval(fetchMessages, 2000);
+    // Initial fetch
     fetchMessages();
-
-    // Set up the Leave Chat button
-    document.getElementById("leave-chat").addEventListener("click", async () => {
-      // Confirm the user's intent
-      if (!confirm("Are you sure you want to leave the chat?")) return;
-
-      const response = await fetch("/chat/leave-chat/", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": "Token " + token
-        }
-      });
-      const result = await response.json();
-      alert(result.message);
-      // Clear chat-related details and stop polling
-      localStorage.removeItem("chat_id");
-      localStorage.removeItem("partner");
-      clearInterval(messagesInterval);
-      // Redirect to the homepage or auth page
-      window.location.href = "/";
-    });
   </script>
 </body>
 </html>

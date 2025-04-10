@@ -6,14 +6,23 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status, permissions
 from rest_framework.authtoken.models import Token
+from .models import Message
 from rest_framework.generics import CreateAPIView
 from .serializers import UserSerializer
 from .models import Message
+from threading import Lock
+import time
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), 'chat/client/enc_test_keygen/basicconcept.py')))
+from chat.client.enc_test_keygen.basicconcept import MessageEncryptor
+
+
 
 # In-memory storage for matchmaking; in production, consider a persistent solution.
 queue = []        # Stores waiting users for chat sessions
 active_chats = {} # Maps chat IDs to a tuple of user objects (user1, user2)
-
+queue_lock = Lock()
 # Home Page View - renders index.html
 def home(request):
     return render(request, "index.html")
@@ -27,9 +36,28 @@ def chat_box(request):
     return render(request, "chatbox.html")
 
 # User Registration View
+# Explicitly use the custom User model (chat_user)
+User = get_user_model()
+
 class RegisterUserView(CreateAPIView):
     queryset = get_user_model().objects.all()
+    queryset = User.objects.all()
     serializer_class = UserSerializer
+
+    def create(self, request, *args, **kwargs):
+        username = request.data.get("username")
+        password = request.data.get("password")
+
+        # Check if the username already exists in the correct User table
+        if User.objects.filter(username=username).exists():
+            return Response({"message": "Username already exists"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Create new user
+        user = User(username=username)
+        user.set_password(password)  # Securely hash the password
+        user.save()
+
+        return Response({"message": "Registration successful!"}, status=status.HTTP_201_CREATED)
 
 # User Login View
 class LoginView(APIView):
@@ -50,30 +78,47 @@ class MatchUserView(APIView):
     def post(self, request):
         user = request.user
 
-        if user in queue:
-            return Response({"message": "You are already in the queue"}, status=status.HTTP_400_BAD_REQUEST)
+        with queue_lock:  # Prevent race conditions
+            # Check if user is already in a chat
+            for chat_id, (user1, user2) in active_chats.items():
+                if user in (user1, user2):
+                    partner = user2 if user == user1 else user1
+                    return Response({
+                        "chat_id": chat_id,
+                        "partner": partner.username
+                    }, status=status.HTTP_200_OK)
 
-        queue.append(user)
+            # Remove user if already in queue (prevent duplicates)
+            if user in queue:
+                queue.remove(user)
 
-        if len(queue) >= 2:
-            # Pop the two earliest users in the queue
-            user1 = queue.pop(0)
-            user2 = queue.pop(0)
-            chat_id = f"{user1.id}_{user2.id}_{int(now().timestamp())}"
-            active_chats[chat_id] = (user1, user2)
-            # Determine the partner for the user making the request
-            if user == user1:
-                partner = user2.username
-            else:
-                partner = user1.username
-            return Response({
-                "message": "Matched successfully!",
-                "chat_id": chat_id,
-                "partner": partner
-            }, status=status.HTTP_200_OK)
+            # Add to queue
+            queue.append(user)
+
+            # Try to match if we have 2+ users
+            if len(queue) >= 2:
+                user1 = queue.pop(0)
+                user2 = queue.pop(0)
+                chat_id = f"{user1.id}_{user2.id}_{int(time.time())}"
+                active_chats[chat_id] = (user1, user2)
+                return Response({
+                    "chat_id": chat_id,
+                    "partner": user2.username if user == user1 else user1.username
+                }, status=status.HTTP_200_OK)
 
         return Response({"message": "Waiting for a match..."}, status=status.HTTP_202_ACCEPTED)
 
+# Add this new view for leaving queue
+class LeaveQueueView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        user = request.user
+        with queue_lock:
+            if user in queue:
+                queue.remove(user)
+                return Response({"message": "Left queue"}, status=status.HTTP_200_OK)
+        return Response({"message": "Not in queue"}, status=status.HTTP_400_BAD_REQUEST)
 # Check Active Chat View
 class CheckChatView(APIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -123,15 +168,21 @@ class SendMessageView(APIView):
     def post(self, request):
         message_text = request.data.get("message")
         chat_id = request.data.get("chat_id")
+
         if chat_id not in active_chats:
             return Response({"message": "Invalid chat ID."}, status=status.HTTP_400_BAD_REQUEST)
+
         user1, user2 = active_chats[chat_id]
         if request.user not in (user1, user2):
             return Response({"message": "You are not a participant of this chat."}, status=status.HTTP_403_FORBIDDEN)
-        # Determine receiver based on who is sending the message
+
         receiver = user2 if request.user == user1 else user1
-        Message.objects.create(sender=request.user, receiver=receiver, encrypted_text=message_text)
+        encryptor = MessageEncryptor()
+        encrypted_text = encryptor.encrypt_message(message_text)
+        Message.objects.create(sender=request.user, receiver=receiver, encrypted_text=encrypted_text)
+
         return Response({"message": "Message sent."}, status=status.HTTP_200_OK)
+
 
 # Get Messages View - retrieves all messages for a given chat session
 class GetMessagesView(APIView):
@@ -139,17 +190,36 @@ class GetMessagesView(APIView):
 
     def get(self, request, chat_id):
         if chat_id not in active_chats:
-            return Response({"message": "Invalid chat ID."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": "Chat not found"}, status=status.HTTP_404_NOT_FOUND)
+
         user1, user2 = active_chats[chat_id]
         if request.user not in (user1, user2):
-            return Response({"message": "You are not a participant of this chat."}, status=status.HTTP_403_FORBIDDEN)
+            return Response({"error": "Not a participant"}, status=status.HTTP_403_FORBIDDEN)
+
         messages = Message.objects.filter(
             Q(sender=user1, receiver=user2) | Q(sender=user2, receiver=user1)
-        ).order_by("timestamp")
-        messages_data = [{
-            "sender": msg.sender.username,
-            "text": msg.encrypted_text,
-            "timestamp": msg.timestamp.strftime("%Y-%m-%d %H:%M:%S")
-        } for msg in messages]
-        return Response({"messages": messages_data}, status=status.HTTP_200_OK)
+        ).order_by('timestamp')
 
+        decryptor = MessageEncryptor()
+        messages_data = []
+
+        for msg in messages:
+            try:
+                decrypted_text = decryptor.decrypt_message(msg.encrypted_text)
+            except Exception as e:
+                decrypted_text = "[Decryption failed]"
+
+            messages_data.append({
+                'id': msg.id,
+                'sender_id': msg.sender.id,
+                'sender_username': msg.sender.username,
+                'text': decrypted_text,
+                'timestamp': msg.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+                'is_current_user': msg.sender == request.user
+            })
+
+        return Response({
+            'messages': messages_data,
+            'current_user': request.user.username,  # Include current user info
+            'partner': user2.username if request.user == user1 else user1.username
+        })

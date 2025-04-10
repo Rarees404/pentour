@@ -25,7 +25,7 @@ SECRET_KEY = 'django-insecure-ky^56xg5&kg2&8ualp++lplthx@*x7s%g)7eyhq*&(@bohhcle
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False 
 
-ALLOWED_HOSTS = ["pengincontour.xyz", "86.95.21.125", "localhost", "127.0.0.1"]
+ALLOWED_HOSTS = ["cemtest1.xyz", "178.238.108.26", "localhost", "127.0.0.1","10.10.9.108", "188.91.214.104"]
 
 # Application definition
 INSTALLED_APPS = [
@@ -77,16 +77,18 @@ ASGI_APPLICATIOn='pc.asgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
+# Change this based on your database credentials to host it locally!
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.environ.get('POSTGRES_DB', 'failed_name'),  # The name of your PostgreSQL database
-        'USER': os.environ.get('POSTGRES_USER', 'failed_user'),
-        'PASSWORD': os.environ.get('POSTGRES_PASSWORD', 'failed_passwd'),
-        'HOST': os.environ.get('POSTGRES_HOST', 'failed_host'),
-        'PORT': os.environ.get('POSTGRES_PORT', 'failed_port'),
+        'NAME': os.environ.get('POSTGRES_DB', 'my_database'),
+        'USER': os.environ.get('POSTGRES_USER', 'myproject_user'),  # Change from 'user'
+        'PASSWORD': os.environ.get('POSTGRES_PASSWORD', 'mysecretpassword'),
+        'HOST': os.environ.get('POSTGRES_HOST', 'localhost'),
+        'PORT': os.environ.get('POSTGRES_PORT', '5432'),
     }
 }
+
 
 
 
@@ -164,17 +166,17 @@ REST_FRAMEWORK = {
 }
 
 # Force all requests to be redirected to HTTPS
-SECURE_SSL_REDIRECT = True
+SECURE_SSL_REDIRECT = False
 
 # If you're behind a reverse proxy (e.g., Nginx), set the following header:
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 # HTTP Strict Transport Security (HSTS) settings
-SECURE_HSTS_SECONDS = 31536000  # 1 year in seconds
-SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-SECURE_HSTS_PRELOAD = True
+SECURE_HSTS_SECONDS = 0  # 1 year in seconds
+SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+SECURE_HSTS_PRELOAD = False
 
 # Optionally, ensure cookies are only sent over HTTPS
-SESSION_COOKIE_SECURE = True
-CSRF_COOKIE_SECURE = True
+SESSION_COOKIE_SECURE = False
+CSRF_COOKIE_SECURE = False
 
