@@ -156,6 +156,7 @@
           localStorage.setItem("token", result.token);
           printStatus("Login successful!", "green");
           resetInputs();
+          window.location.href="/chat/usermenu/";
         } else {
           printStatus("Login failed: " + (result.message || "Unknown error."), "red");
         }
