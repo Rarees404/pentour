@@ -1,7 +1,10 @@
 from django.contrib.auth import authenticate, get_user_model
 from django.utils.timezone import now
 from django.shortcuts import render
+from django.views.decorators.csrf import csrf_exempt
+from django.shortcuts import render
 from django.db.models import Q
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status, permissions
@@ -14,6 +17,7 @@ from threading import Lock
 import time
 import sys
 import os
+import uuid
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), 'chat/client/enc_test_keygen/basicconcept.py')))
 from chat.client.enc_test_keygen.basicconcept import MessageEncryptor
 
@@ -30,6 +34,11 @@ def home(request):
 # Authentication Page View (Login/Register UI) - renders auth.html
 def auth_page(request):
     return render(request, "auth.html")
+
+
+def user_menu(request):
+    return render(request, "usermenu.html")
+
 
 # Chatbox Page View - renders chatbox.html
 def chat_box(request):
@@ -70,6 +79,64 @@ class LoginView(APIView):
             token, created = Token.objects.get_or_create(user=user)
             return Response({"token": token.key})
         return Response({"message": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
+
+
+
+class UserMenuView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        return Response({
+            "username": user.username,
+            "email": user.email,
+            "menu": [
+                {"label": "Start Chat", "path": "/chat/start/"},
+                {"label": "Join Chat", "path": "/chat/join/"},
+                {"label": "Logout", "path": "/logout/"}
+            ]
+        })
+
+
+class CreateChatView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        chat_id = str(uuid.uuid4())  # generate unique ID
+        active_chats[chat_id] = [request.user]  # store creator
+        return Response({"chat_id": chat_id}, status=status.HTTP_201_CREATED)
+
+
+class JoinChatView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        chat_id = request.data.get("chat_id")
+        if not chat_id:
+            return Response({"message": "Chat ID is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        if chat_id not in active_chats:
+            return Response({"message": "Chat not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        users = active_chats[chat_id]
+
+        if request.user in users:
+            return Response({"message": "You are already in this chat"}, status=status.HTTP_200_OK)
+
+        if len(users) >= 2:
+            return Response({"message": "Chat is full"}, status=status.HTTP_403_FORBIDDEN)
+
+        users.append(request.user)
+        partner = users[0]
+        return Response({
+            "message": "Successfully joined chat",
+            "chat_id": chat_id,
+            "partner": partner.username
+        }, status=status.HTTP_200_OK)
+
+
+
+
 
 # Matchmaking Queue View
 class MatchUserView(APIView):

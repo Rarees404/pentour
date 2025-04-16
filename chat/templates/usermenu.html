@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>User Menu</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 2rem;
+            background: #f4f4f4;
+            text-align: center;
+        }
+        h1 {
+            color: #333;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 10px;
+            font-size: 1rem;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            background: #007bff;
+            color: white;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .logout {
+            background: #dc3545;
+        }
+        .logout:hover {
+            background: #b52b27;
+        }
+        input {
+            padding: 10px;
+            margin-top: 15px;
+            width: 250px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+        }
+        #joinStatus {
+            margin-top: 10px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+<h1>Welcome to Your Chat Menu</h1>
+
+<button onclick="createChat()">Create Chat</button>
+<br />
+
+<input type="text" id="chatIdInput" placeholder="Enter Chat ID" />
+<br />
+<button onclick="joinChatById()">Join Chat</button>
+<br />
+<button class="logout" onclick="logout()">Logout</button>
+
+<p id="joinStatus"></p>
+
+<script>
+    if (!localStorage.getItem("token")) {
+        window.location.href = "/";
+    }
+
+    async function createChat() {
+        const token = localStorage.getItem("token");
+        const response = await fetch("/chat/create-chat/", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": "Token " + token
+            }
+        });
+        const result = await response.json();
+        if (response.ok) {
+            localStorage.setItem("chat_id", result.chat_id);
+            alert("Share this Chat ID with your partner: " + result.chat_id);
+            window.location.href = "/chat/chatbox/";
+        } else {
+            alert("Failed to create chat");
+        }
+    }
+
+    async function joinChatById() {
+        const chatId = document.getElementById("chatIdInput").value.trim();
+        const token = localStorage.getItem("token");
+        const status = document.getElementById("joinStatus");
+
+        if (!chatId) {
+            status.textContent = "Please enter a chat ID.";
+            status.style.color = "red";
+            return;
+        }
+
+        const response = await fetch("/chat/join-chat/", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": "Token " + token
+            },
+            body: JSON.stringify({ chat_id: chatId })
+        });
+
+        const result = await response.json();
+        if (response.ok) {
+            localStorage.setItem("chat_id", chatId);
+            localStorage.setItem("partner", result.partner);
+            status.style.color = "green";
+            status.textContent = "Successfully joined chat!";
+            setTimeout(() => {
+                window.location.href = "/chat/chatbox/";
+            }, 1000);
+        } else {
+            status.style.color = "red";
+            status.textContent = result.message || "Failed to join chat.";
+        }
+    }
+
+    function logout() {
+        localStorage.clear();
+        window.location.href = "/";
+    }
+</script>
+</body>
+</html>
