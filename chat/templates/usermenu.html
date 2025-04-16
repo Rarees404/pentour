@@ -3,45 +3,92 @@
 <head>
     <meta charset="UTF-8" />
     <title>User Menu</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
     <style>
         body {
-            font-family: Arial, sans-serif;
+            font-family: 'Inter', sans-serif;
             padding: 2rem;
             background: #f4f4f4;
             text-align: center;
         }
+
         h1 {
             color: #333;
+            margin-bottom: 2rem;
         }
+
         button {
-            padding: 10px 20px;
+            padding: 12px 24px;
             margin: 10px;
             font-size: 1rem;
             border: none;
-            border-radius: 5px;
+            border-radius: 6px;
             cursor: pointer;
             background: #007bff;
             color: white;
+            font-weight: 600;
         }
+
         button:hover {
             background: #0056b3;
         }
+
         .logout {
             background: #dc3545;
         }
+
         .logout:hover {
             background: #b52b27;
         }
+
         input {
             padding: 10px;
             margin-top: 15px;
             width: 250px;
-            border-radius: 4px;
+            border-radius: 6px;
             border: 1px solid #ccc;
         }
+
         #joinStatus {
             margin-top: 10px;
             font-weight: bold;
+        }
+
+        /* Modal styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0; top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.6);
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            text-align: center;
+            width: 90%;
+            max-width: 400px;
+        }
+
+        .modal-content p {
+            margin-bottom: 15px;
+            font-size: 1.1rem;
+        }
+
+        .modal-content input {
+            width: 100%;
+            padding: 10px;
+            font-size: 1rem;
+            margin-bottom: 10px;
+            border-radius: 6px;
+            border: 1px solid #ccc;
         }
     </style>
 </head>
@@ -50,19 +97,31 @@
 
 <button onclick="createChat()">Create Chat</button>
 <br />
-
 <input type="text" id="chatIdInput" placeholder="Enter Chat ID" />
 <br />
 <button onclick="joinChatById()">Join Chat</button>
 <br />
 <button class="logout" onclick="logout()">Logout</button>
-
 <p id="joinStatus"></p>
+
+<!-- Modal -->
+<div id="chatModal" class="modal">
+    <div class="modal-content">
+        <p>Share this Chat ID:</p>
+        <input id="chatIdDisplay" readonly />
+        <button onclick="copyChatId()">Copy Chat ID</button>
+        <button onclick="enterChat()">Join Chat</button>
+        <br /><br />
+        <button onclick="closeModal()" class="logout">Close</button>
+    </div>
+</div>
 
 <script>
     if (!localStorage.getItem("token")) {
         window.location.href = "/";
     }
+
+    let createdChatId = null;
 
     async function createChat() {
         const token = localStorage.getItem("token");
@@ -75,12 +134,31 @@
         });
         const result = await response.json();
         if (response.ok) {
-            localStorage.setItem("chat_id", result.chat_id);
-            alert("Share this Chat ID with your partner: " + result.chat_id);
-            window.location.href = "/chat/chatbox/";
+            createdChatId = result.chat_id;
+            localStorage.setItem("chat_id", createdChatId);
+            document.getElementById("chatIdDisplay").value = createdChatId;
+            document.getElementById("chatModal").style.display = "flex";
         } else {
             alert("Failed to create chat");
         }
+    }
+
+    function copyChatId() {
+        const input = document.getElementById("chatIdDisplay");
+        input.select();
+        input.setSelectionRange(0, 99999);
+        navigator.clipboard.writeText(input.value).then(() => {
+            alert("Chat ID copied to clipboard!");
+        });
+    }
+
+    function enterChat() {
+        document.getElementById("chatModal").style.display = "none";
+        window.location.href = "/chat/chatbox/";
+    }
+
+    function closeModal() {
+        document.getElementById("chatModal").style.display = "none";
     }
 
     async function joinChatById() {
@@ -121,6 +199,14 @@
     function logout() {
         localStorage.clear();
         window.location.href = "/";
+    }
+
+    // Allow modal close when clicking outside
+    window.onclick = function(event) {
+        const modal = document.getElementById("chatModal");
+        if (event.target === modal) {
+            modal.style.display = "none";
+        }
     }
 </script>
 </body>
