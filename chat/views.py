@@ -137,7 +137,6 @@ class JoinChatView(APIView):
 
 
 
-
 # Matchmaking Queue View
 class MatchUserView(APIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -229,29 +228,62 @@ class LeaveChatView(APIView):
         return Response({"message": "No active chat to leave."}, status=status.HTTP_400_BAD_REQUEST)
 
 # Send Message View - saves a message in the database
+from chat.client.enc_test_keygen.RSAEncryptor import (
+    generate_aes_key, encrypt_with_aes, encrypt_aes_key_with_rsa
+)
+
 class SendMessageView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
-        message_text = request.data.get("message")
-        chat_id = request.data.get("chat_id")
+        try:
+            message_text = request.data.get("message")
+            chat_id = request.data.get("chat_id")
+            print("Message:", message_text)
+            print("Chat ID:", chat_id)
 
-        if chat_id not in active_chats:
-            return Response({"message": "Invalid chat ID."}, status=status.HTTP_400_BAD_REQUEST)
+            if chat_id not in active_chats:
+                return Response({"message": "Invalid chat ID."}, status=status.HTTP_400_BAD_REQUEST)
 
-        user1, user2 = active_chats[chat_id]
-        if request.user not in (user1, user2):
-            return Response({"message": "You are not a participant of this chat."}, status=status.HTTP_403_FORBIDDEN)
+            user1, user2 = active_chats[chat_id]
+            if request.user not in (user1, user2):
+                return Response({"message": "You are not a participant of this chat."}, status=status.HTTP_403_FORBIDDEN)
 
-        receiver = user2 if request.user == user1 else user1
-        encryptor = MessageEncryptor()
-        encrypted_text = encryptor.encrypt_message(message_text)
-        Message.objects.create(sender=request.user, receiver=receiver, encrypted_text=encrypted_text)
+            receiver = user2 if request.user == user1 else user1
+            print("Encrypting for receiver:", receiver.username)
 
-        return Response({"message": "Message sent."}, status=status.HTTP_200_OK)
+            aes_key = generate_aes_key()
+            encrypted_msg = encrypt_with_aes(aes_key, message_text)
+            # Load receiver's public RSA key from file
+            with open("chat/client/enc_test_keygen/static/keys/public_key.pem", "r") as f:
+                public_key_pem = f.read()
+
+            # Encrypt AES key using RSA public key
+            encrypted_key = encrypt_aes_key_with_rsa(public_key_pem, aes_key)
+
+            print("Encrypted AES key:", encrypted_key)
+
+            Message.objects.create(
+                sender=request.user,
+                receiver=receiver,
+                encrypted_text=encrypted_msg["ciphertext"],
+                encrypted_symmetric_key=encrypted_key,
+                aes_nonce=encrypted_msg["nonce"],
+                aes_tag=encrypted_msg["tag"]
+            )
+
+            return Response({"message": "Message sent."}, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            print("SendMessageView ERROR:", str(e))  # Show in terminal
+            return Response({"error": "Something went wrong: " + str(e)}, status=500)
 
 
 # Get Messages View - retrieves all messages for a given chat session
+from chat.client.enc_test_keygen.RSAEncryptor import (
+    decrypt_with_aes, decrypt_aes_key_with_rsa
+)
+
 class GetMessagesView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
@@ -267,14 +299,26 @@ class GetMessagesView(APIView):
             Q(sender=user1, receiver=user2) | Q(sender=user2, receiver=user1)
         ).order_by('timestamp')
 
-        decryptor = MessageEncryptor()
         messages_data = []
+
+        # Load the private key of the current user
+        with open("chat/client/enc_test_keygen/static/keys/private_key.pem", "r") as f:
+            private_key_pem = f.read()
 
         for msg in messages:
             try:
-                decrypted_text = decryptor.decrypt_message(msg.encrypted_text)
+                # Decrypt AES key
+                aes_key = decrypt_aes_key_with_rsa(private_key_pem, msg.encrypted_symmetric_key)
+
+                # Decrypt the message using stored nonce and tag
+                decrypted_text = decrypt_with_aes(aes_key, {
+                    "ciphertext": msg.encrypted_text,
+                    "nonce": msg.aes_nonce,
+                    "tag": msg.aes_tag
+                })
             except Exception as e:
                 decrypted_text = "[Decryption failed]"
+                print("Decryption error:", e)
 
             messages_data.append({
                 'id': msg.id,
@@ -287,6 +331,7 @@ class GetMessagesView(APIView):
 
         return Response({
             'messages': messages_data,
-            'current_user': request.user.username,  # Include current user info
+            'current_user': request.user.username,
             'partner': user2.username if request.user == user1 else user1.username
         })
+

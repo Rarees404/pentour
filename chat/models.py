@@ -21,5 +21,8 @@ class Message(models.Model):
     sender = models.ForeignKey(User, on_delete=models.CASCADE, related_name="sent_messages")
     receiver = models.ForeignKey(User, on_delete=models.CASCADE, related_name="received_messages")
     encrypted_text = models.TextField()  # Stores AES-256 encrypted message
+    encrypted_symmetric_key = models.TextField(null=True, blank=True)
+    aes_nonce = models.TextField(null=True, blank=True)
+    aes_tag = models.TextField(null=True, blank=True)
     timestamp = models.DateTimeField(auto_now_add=True)
 
