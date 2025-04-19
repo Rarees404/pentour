@@ -18,8 +18,10 @@ import time
 import sys
 import os
 import uuid
+import logging
+logger = logging.getLogger(__name__)
+
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), 'chat/client/enc_test_keygen/basicconcept.py')))
-from chat.client.enc_test_keygen.basicconcept import MessageEncryptor
 
 
 
@@ -48,25 +50,56 @@ def chat_box(request):
 # Explicitly use the custom User model (chat_user)
 User = get_user_model()
 
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.primitives import serialization
+
 class RegisterUserView(CreateAPIView):
-    queryset = get_user_model().objects.all()
     queryset = User.objects.all()
     serializer_class = UserSerializer
 
     def create(self, request, *args, **kwargs):
         username = request.data.get("username")
         password = request.data.get("password")
-
-        # Check if the username already exists in the correct User table
+        logger.info(f"[REGISTER] New registration request for username: {username}")
         if User.objects.filter(username=username).exists():
             return Response({"message": "Username already exists"}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Create new user
-        user = User(username=username)
-        user.set_password(password)  # Securely hash the password
-        user.save()
+        # Generate RSA Key Pair
+        private_key = rsa.generate_private_key(
+            public_exponent=65537,
+            key_size=4096
+        )
+        logger.debug(f"[REGISTER] RSA key pair generated for user: {username}")
 
+        # Serialize public key to store in DB
+        public_pem = private_key.public_key().public_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PublicFormat.SubjectPublicKeyInfo
+        ).decode()
+
+        # Serialize private key to store on disk
+        private_pem = private_key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption()
+        )
+
+        # Create user with public key
+        user = User(username=username, public_key=public_pem)
+        user.set_password(password)
+        user.save()
+        logger.info(f"[REGISTER] User created and public key saved for: {username}")
+
+        # Save private key to a file
+        key_dir = os.path.join("chat", "client", "enc_test_keygen", "static", "keys")
+        os.makedirs(key_dir, exist_ok=True)
+        key_path = os.path.join(key_dir, f"{username}_private_key.pem")
+        with open(key_path, "wb") as f:
+            f.write(private_pem)
+
+        logger.info(f"[REGISTER] Private key saved at: {os.path.join(key_dir, f'{username}_private_key.pem')}")
         return Response({"message": "Registration successful!"}, status=status.HTTP_201_CREATED)
+
 
 # User Login View
 class LoginView(APIView):
@@ -74,8 +107,12 @@ class LoginView(APIView):
         username = request.data.get("username")
         password = request.data.get("password")
         user = authenticate(username=username, password=password)
+        logger.info(f"[LOGIN] Attempting login for username: {username}")
+        logger.warning(f"[LOGIN] Login failed for user: {username}")
+
 
         if user is not None:
+            logger.info(f"[LOGIN] Login successful for user: {username}")
             token, created = Token.objects.get_or_create(user=user)
             return Response({"token": token.key})
         return Response({"message": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
@@ -137,12 +174,12 @@ class JoinChatView(APIView):
 
 
 
-
 # Matchmaking Queue View
 class MatchUserView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
+
         user = request.user
 
         with queue_lock:  # Prevent race conditions
@@ -229,29 +266,66 @@ class LeaveChatView(APIView):
         return Response({"message": "No active chat to leave."}, status=status.HTTP_400_BAD_REQUEST)
 
 # Send Message View - saves a message in the database
+from chat.client.enc_test_keygen.RSAEncryptor import (
+    generate_aes_key, encrypt_with_aes, encrypt_aes_key_with_rsa
+)
+
 class SendMessageView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
-        message_text = request.data.get("message")
-        chat_id = request.data.get("chat_id")
+        try:
+            message_text = request.data.get("message")
+            chat_id = request.data.get("chat_id")
+            logger.info(f"[SEND] User {request.user.username} is sending a message to chat {chat_id}")
+            print("Message:", message_text)
+            print("Chat ID:", chat_id)
 
-        if chat_id not in active_chats:
-            return Response({"message": "Invalid chat ID."}, status=status.HTTP_400_BAD_REQUEST)
+            if chat_id not in active_chats:
+                return Response({"message": "Invalid chat ID."}, status=status.HTTP_400_BAD_REQUEST)
 
-        user1, user2 = active_chats[chat_id]
-        if request.user not in (user1, user2):
-            return Response({"message": "You are not a participant of this chat."}, status=status.HTTP_403_FORBIDDEN)
+            user1, user2 = active_chats[chat_id]
+            if request.user not in (user1, user2):
+                return Response({"message": "You are not a participant of this chat."}, status=status.HTTP_403_FORBIDDEN)
 
-        receiver = user2 if request.user == user1 else user1
-        encryptor = MessageEncryptor()
-        encrypted_text = encryptor.encrypt_message(message_text)
-        Message.objects.create(sender=request.user, receiver=receiver, encrypted_text=encrypted_text)
+            receiver = user2 if request.user == user1 else user1
+            print("Encrypting for receiver:", receiver.username)
 
-        return Response({"message": "Message sent."}, status=status.HTTP_200_OK)
+            aes_key = generate_aes_key()
+            encrypted_msg = encrypt_with_aes(aes_key, message_text)
+            logger.debug(f"[SEND] Using public key of {receiver.username} for encryption.")
+            # Load receiver's public RSA key from file
+            with open("chat/client/enc_test_keygen/static/keys/public_key.pem", "r") as f:
+                public_key_pem = f.read()
+
+            # Encrypt AES key using RSA public key
+            encrypted_key = encrypt_aes_key_with_rsa(public_key_pem, aes_key)
+
+            print("Encrypted AES key:", encrypted_key)
+
+            Message.objects.create(
+                sender=request.user,
+                receiver=receiver,
+                encrypted_text=encrypted_msg["ciphertext"],
+                encrypted_symmetric_key=encrypted_key,
+                aes_nonce=encrypted_msg["nonce"],
+                aes_tag=encrypted_msg["tag"]
+            )
+            logger.info(f"[SEND] Message from {request.user.username} to {receiver.username} stored in DB.")
+
+
+            return Response({"message": "Message sent."}, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            print("SendMessageView ERROR:", str(e))  # Show in terminal
+            return Response({"error": "Something went wrong: " + str(e)}, status=500)
 
 
 # Get Messages View - retrieves all messages for a given chat session
+from chat.client.enc_test_keygen.RSAEncryptor import (
+    decrypt_with_aes, decrypt_aes_key_with_rsa
+)
+
 class GetMessagesView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
@@ -267,14 +341,28 @@ class GetMessagesView(APIView):
             Q(sender=user1, receiver=user2) | Q(sender=user2, receiver=user1)
         ).order_by('timestamp')
 
-        decryptor = MessageEncryptor()
         messages_data = []
 
+        # Load the private key of the current user
+        with open("chat/client/enc_test_keygen/static/keys/private_key.pem", "r") as f:
+            private_key_pem = f.read()
+        logger.debug(f"[GET] Loaded private key for user {request.user.username}")
+
         for msg in messages:
+            logger.debug(f"[GET] Attempting to decrypt message ID {msg.id}")
             try:
-                decrypted_text = decryptor.decrypt_message(msg.encrypted_text)
+                # Decrypt AES key
+                aes_key = decrypt_aes_key_with_rsa(private_key_pem, msg.encrypted_symmetric_key)
+
+                # Decrypt the message using stored nonce and tag
+                decrypted_text = decrypt_with_aes(aes_key, {
+                    "ciphertext": msg.encrypted_text,
+                    "nonce": msg.aes_nonce,
+                    "tag": msg.aes_tag
+                })
             except Exception as e:
                 decrypted_text = "[Decryption failed]"
+                print("Decryption error:", e)
 
             messages_data.append({
                 'id': msg.id,
@@ -287,6 +375,7 @@ class GetMessagesView(APIView):
 
         return Response({
             'messages': messages_data,
-            'current_user': request.user.username,  # Include current user info
+            'current_user': request.user.username,
             'partner': user2.username if request.user == user1 else user1.username
         })
+

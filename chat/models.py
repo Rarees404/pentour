@@ -9,7 +9,8 @@ import uuid
 # Custom User Model (Stores Public Key)
 
 class User(AbstractUser):
-    public_key = models.TextField(null=True, blank=True)  # Stores user's RSA public key
+    public_key = models.TextField(null=True, blank=True)
+    private_kyte = models.TextField(null=True, blank=True)# Stores user's RSA public key
 
     # Avoid conflicts with Django's built-in User model
     groups = models.ManyToManyField(Group, related_name="chat_users", blank=True)
@@ -21,5 +22,8 @@ class Message(models.Model):
     sender = models.ForeignKey(User, on_delete=models.CASCADE, related_name="sent_messages")
     receiver = models.ForeignKey(User, on_delete=models.CASCADE, related_name="received_messages")
     encrypted_text = models.TextField()  # Stores AES-256 encrypted message
+    encrypted_symmetric_key = models.TextField(null=True, blank=True)
+    aes_nonce = models.TextField(null=True, blank=True)
+    aes_tag = models.TextField(null=True, blank=True)
     timestamp = models.DateTimeField(auto_now_add=True)
 
