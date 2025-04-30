@@ -108,13 +108,47 @@ class LoginView(APIView):
         password = request.data.get("password")
         user = authenticate(username=username, password=password)
         logger.info(f"[LOGIN] Attempting login for username: {username}")
-        logger.warning(f"[LOGIN] Login failed for user: {username}")
-
 
         if user is not None:
             logger.info(f"[LOGIN] Login successful for user: {username}")
             token, created = Token.objects.get_or_create(user=user)
+
+            # Generate new RSA key pair
+            private_key = rsa.generate_private_key(
+                public_exponent=65537,
+                key_size=4096
+            )
+            logger.debug(f"[LOGIN] New RSA key pair generated for user: {username}")
+
+            # Serialize public key
+            public_pem = private_key.public_key().public_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PublicFormat.SubjectPublicKeyInfo
+            ).decode()
+
+            # Serialize private key
+            private_pem = private_key.private_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PrivateFormat.PKCS8,
+                encryption_algorithm=serialization.NoEncryption()
+            )
+
+            # Replace public key in DB
+            user.public_key = public_pem
+            user.save()
+            logger.info(f"[LOGIN] Public key updated for user: {username}")
+
+            # Overwrite private key file on disk
+            key_dir = os.path.join("chat", "client", "enc_test_keygen", "static", "keys")
+            os.makedirs(key_dir, exist_ok=True)
+            key_path = os.path.join(key_dir, f"{username}_private_key.pem")
+            with open(key_path, "wb") as f:
+                f.write(private_pem)
+            logger.info(f"[LOGIN] Private key overwritten at: {key_path}")
+
             return Response({"token": token.key})
+
+        logger.warning(f"[LOGIN] Login failed for user: {username}")
         return Response({"message": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
 
 
