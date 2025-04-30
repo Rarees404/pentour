@@ -3,7 +3,6 @@ Basic concept is a function that encrypts messages, it is hardcoded for test use
 //try pip install cryptography
 
 
-basicconcept.py
 It is a class that takes and hardcoded message and prints the result.
 
 Encryption Approach

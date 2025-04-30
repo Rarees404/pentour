@@ -21,7 +21,6 @@ import uuid
 import logging
 logger = logging.getLogger(__name__)
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), 'chat/client/enc_test_keygen/basicconcept.py')))
 
 
 
@@ -223,6 +222,8 @@ class LeaveQueueView(APIView):
                 queue.remove(user)
                 return Response({"message": "Left queue"}, status=status.HTTP_200_OK)
         return Response({"message": "Not in queue"}, status=status.HTTP_400_BAD_REQUEST)
+
+
 # Check Active Chat View
 class CheckChatView(APIView):
     permission_classes = [permissions.IsAuthenticated]
