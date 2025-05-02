@@ -3,6 +3,12 @@ from django.utils.timezone import now
 from django.shortcuts import render
 from django.views.decorators.csrf import csrf_exempt
 from django.shortcuts import render
+from django.contrib.auth import authenticate, login as django_login
+from rest_framework.authtoken.models import Token
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+import pyotp
 from django.db.models import Q
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
@@ -19,15 +25,24 @@ import sys
 import os
 import uuid
 import logging
+import pyotp
+import qrcode
+import io
+import base64
+from django.shortcuts import render, redirect
+from django.contrib.auth.decorators import login_required
+from django.contrib import messages
 logger = logging.getLogger(__name__)
 
 
 
 
 # In-memory storage for matchmaking; in production, consider a persistent solution.
-queue = []        # Stores waiting users for chat sessions
-active_chats = {} # Maps chat IDs to a tuple of user objects (user1, user2)
-queue_lock = Lock()
+#queue = []        # Stores waiting users for chat sessions
+#active_chats = {} # Maps chat IDs to a tuple of user objects (user1, user2)
+#queue_lock = Lock()
+
+
 # Home Page View - renders index.html
 def home(request):
     return render(request, "index.html")
@@ -44,6 +59,10 @@ def user_menu(request):
 # Chatbox Page View - renders chatbox.html
 def chat_box(request):
     return render(request, "chatbox.html")
+
+active_chats = {}
+
+
 
 # User Registration View
 # Explicitly use the custom User model (chat_user)
@@ -103,18 +122,32 @@ class RegisterUserView(CreateAPIView):
 # User Login View
 class LoginView(APIView):
     def post(self, request):
-        username = request.data.get("username")
-        password = request.data.get("password")
+        username = request.data.get('username')
+        password = request.data.get('password')
+        otp_code = request.data.get('otp_code')  # optional, if 2FA enabled
+
         user = authenticate(username=username, password=password)
-        logger.info(f"[LOGIN] Attempting login for username: {username}")
-        logger.warning(f"[LOGIN] Login failed for user: {username}")
+        if not user:
+            return Response(
+                {'detail': 'Invalid credentials'},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
 
+        # ← NEW: create a Django session so request.user is set later
+        django_login(request, user)
 
-        if user is not None:
-            logger.info(f"[LOGIN] Login successful for user: {username}")
-            token, created = Token.objects.get_or_create(user=user)
-            return Response({"token": token.key})
-        return Response({"message": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
+        # If the user has 2FA enabled, verify the OTP code
+        if user.is_2fa_enabled:
+            totp = pyotp.TOTP(user.totp_secret)
+            if not otp_code or not totp.verify(otp_code):
+                return Response(
+                    {'detail': 'Invalid or missing 2FA code'},
+                    status=status.HTTP_401_UNAUTHORIZED
+                )
+
+        # Issue (or retrieve) the DRF Token
+        token, _ = Token.objects.get_or_create(user=user)
+        return Response({'token': token.key})
 
 
 
@@ -141,6 +174,7 @@ class CreateChatView(APIView):
         chat_id = str(uuid.uuid4())  # generate unique ID
         active_chats[chat_id] = [request.user]  # store creator
         return Response({"chat_id": chat_id}, status=status.HTTP_201_CREATED)
+
 
 
 class JoinChatView(APIView):
@@ -380,3 +414,36 @@ class GetMessagesView(APIView):
             'partner': user2.username if request.user == user1 else user1.username
         })
 
+@login_required
+def setup_2fa(request):
+    user = request.user
+
+    # 1) On first visit, generate & store a new secret
+    if not user.totp_secret:
+        user.totp_secret = pyotp.random_base32()
+        user.save()
+
+    # 2) Build the URI for Google Authenticator
+    totp = pyotp.TOTP(user.totp_secret)
+    otp_uri = totp.provisioning_uri(name=user.username, issuer_name='Secure Chat')
+
+    # 3) Render a QR code image as base64
+    qr_img = qrcode.make(otp_uri)
+    buffer = io.BytesIO()
+    qr_img.save(buffer, format='PNG')
+    qr_data = base64.b64encode(buffer.getvalue()).decode()
+
+    # 4) If the form was submitted, verify the user’s code
+    if request.method == 'POST':
+        code = request.POST.get('otp_code')
+        if totp.verify(code):
+            user.is_2fa_enabled = True
+            user.save()
+            messages.success(request, '2FA activated successfully.')
+            return redirect('user_menu')
+        else:
+            messages.error(request, 'Invalid code, please try again.')
+
+    return render(request, 'chat/2fa_setup.html', {
+        'qr_data': qr_data,
+    })

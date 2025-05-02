@@ -107,7 +107,9 @@
     <form id="login-form">
         <input type="text" id="login-username" placeholder="Username" required>
         <input type="password" id="login-password" placeholder="Password" required>
+        <input type="text" id="otp-code" placeholder="2FA code (if enabled)" style="display:none; margin-top:10px;"/>
         <button type="submit">Login</button>
+        <p id="login-error" style="color:red;"></p>
     </form>
     <div id="status"></div>
 </div>
@@ -152,26 +154,47 @@
 
     document.getElementById("login-form").addEventListener("submit", async (event) => {
         event.preventDefault();
+
         const username = document.getElementById("login-username").value;
         const password = document.getElementById("login-password").value;
 
-        try {
-            const response = await fetch("/chat/login/", {
+        // helper to call your login endpoint
+        async function attemptLogin(otp_code) {
+            const payload = { username, password };
+            if (otp_code !== undefined) payload.otp_code = otp_code;
+            const res = await fetch("/chat/login/", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ username, password }),
+                body: JSON.stringify(payload),
+                credentials: "include"   // if you've hooked up session login
             });
+            const json = await res.json();
+            return { res, json };
+        }
 
-            const result = await response.json();
-            if (response.ok) {
-                localStorage.setItem("token", result.token);
+        try {
+            // 1) First attempt without OTP
+            let { res, json } = await attemptLogin();
+
+            // 2) If the server demands 2FA, prompt and retry
+            if (!res.ok && json.detail && json.detail.toLowerCase().includes("2fa")) {
+                const otp = prompt("Enter your 2FA code from Google Authenticator:");
+                if (otp) {
+                    ({ res, json } = await attemptLogin(otp));
+                }
+            }
+
+            // 3) Final outcome
+            if (res.ok) {
+                localStorage.setItem("token", json.token);
                 printStatus("Login successful!", "green");
                 resetInputs();
                 window.location.href = "/chat/usermenu/";
             } else {
-                printStatus("Login failed: " + (result.message || "Unknown error."), "red");
+                printStatus("Login failed: " + (json.detail || "Unknown error."), "red");
             }
-        } catch (error) {
+
+        } catch (err) {
             printStatus("An error occurred during login.", "red");
         }
     });

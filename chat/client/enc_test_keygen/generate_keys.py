@@ -3,7 +3,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives import serialization
 
 # -----------------------------------------
-# 🔐 Generate RSA Key Pair (4096-bit)
+#  Generate RSA Key Pair (4096-bit)
 # -----------------------------------------
 private_key = rsa.generate_private_key(
     public_exponent=65537,  # Commonly used public exponent
@@ -11,7 +11,7 @@ private_key = rsa.generate_private_key(
 )
 
 # -----------------------------------------
-# 📝 Serialize and Save Private Key (Client-Side Only)
+#  Serialize and Save Private Key (Client-Side Only)
 # -----------------------------------------
 private_pem = private_key.private_bytes(
     encoding=serialization.Encoding.PEM,                      # Encode key in PEM format
@@ -36,8 +36,8 @@ with open("public_key.pem", "wb") as public_file:
     public_file.write(public_pem)
 
 # -----------------------------------------
-# ✅ Status Messages
+# Status Messages
 # -----------------------------------------
-print("🔑 RSA Key Pair Generated!")
-print("✅ Private Key: private_key.pem (DO NOT SHARE)")
-print("✅ Public Key: public_key.pem (Send to Server)")
+print("RSA Key Pair Generated!")
+print("Private Key: private_key.pem (DO NOT SHARE)")
+print("Public Key: public_key.pem (Send to Server)")

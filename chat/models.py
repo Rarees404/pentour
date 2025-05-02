@@ -9,6 +9,12 @@ import uuid
 # Custom User Model (Stores Public Key)
 
 class User(AbstractUser):
+    # Store the user's TOTP secret
+    totp_secret = models.CharField(max_length=32, blank=True, null=True)
+    # Flag to require 2FA at login
+    is_2fa_enabled = models.BooleanField(default=False)
+
+
     public_key = models.TextField(null=True, blank=True)
     private_kyte = models.TextField(null=True, blank=True)# Stores user's RSA public key
 

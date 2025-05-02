@@ -4,68 +4,120 @@
     <meta charset="UTF-8" />
     <title>Secure Chat</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <link
+            href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap"
+            rel="stylesheet"
+    >
     <style>
+        /* Theme variables */
+        :root {
+            --primary-blue: #007bff;
+            --light-gray: #f9f9f9;
+            --bg-gray: #f1f2f7;
+            --danger-red: #dc3545;
+        }
+
+        /* Full-height flex container, centered */
         body {
             margin: 0;
             font-family: 'Inter', sans-serif;
-            background: #f1f2f7;
+            background: var(--bg-gray);
             display: flex;
             flex-direction: column;
+            align-items: center;        /* center wrapper */
             height: 100vh;
             color: #333;
         }
 
-        #chat-header {
-            background: #007bff;
-            color: white;
-            padding: 1rem;
-            text-align: center;
-            font-size: 1.2rem;
+        /* Constrain everything to a centered 600px column */
+        #chat-header,
+        #messages,
+        #message-form,
+        #leave-chat {
+            width: 100%;
+            max-width: 600px;
+            box-sizing: border-box;
         }
 
+        /* Sticky header with Account button */
+        #chat-header {
+            position: sticky;
+            top: 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--primary-blue);
+            color: white;
+            padding: 1rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            z-index: 10;
+        }
+        #chat-header .chat-title {
+            font-size: 1.2rem;
+        }
+        .account-btn {
+            display: inline-flex;
+            align-items: center;
+            background: transparent;
+            border: none;
+            color: white;
+            font-weight: 600;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .account-btn svg {
+            width: 1.2em;
+            height: 1.2em;
+            margin-right: 0.3em;
+            fill: currentColor;
+        }
+
+        /* Scrollable messages area */
         #messages {
-            flex-grow: 1;
+            flex: 1;
             overflow-y: auto;
             padding: 20px;
             display: flex;
             flex-direction: column;
             gap: 15px;
-            background: #f9f9f9;
+            background: var(--light-gray);
         }
 
+        /* Chat bubbles */
         .message {
             max-width: 70%;
             padding: 12px 16px;
             border-radius: 20px;
             word-wrap: break-word;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
         }
-
         .current-user {
             align-self: flex-end;
-            background: #007bff;
+            background: var(--primary-blue);
             color: white;
             border-bottom-right-radius: 5px;
         }
-
         .other-user {
             align-self: flex-start;
             background: #e4e6eb;
             border-bottom-left-radius: 5px;
+            /* avatar removed */
         }
-
         .message-username {
             font-weight: 600;
             font-size: 0.85rem;
             margin-bottom: 5px;
         }
-
         .message-time {
             font-size: 0.7rem;
             color: #666;
             margin-top: 5px;
+            align-self: flex-end;
         }
 
+        /* Input bar & leave button */
         #message-form {
             display: flex;
             padding: 15px;
@@ -73,29 +125,26 @@
             background: white;
             border-top: 1px solid #ddd;
         }
-
         #message-input {
-            flex-grow: 1;
+            flex: 1;
             padding: 12px 15px;
             border: 1px solid #ccc;
             border-radius: 20px;
             font-size: 1rem;
         }
-
         #message-form button {
             padding: 12px 20px;
-            background: #007bff;
+            background: var(--primary-blue);
             color: white;
             border: none;
             border-radius: 20px;
             cursor: pointer;
             font-weight: 600;
         }
-
         #leave-chat {
             width: 100%;
             padding: 12px;
-            background: #dc3545;
+            background: var(--danger-red);
             color: white;
             border: none;
             font-size: 1rem;
@@ -103,27 +152,47 @@
             border-top: 1px solid #ccc;
         }
 
+        /* Mobile tweaks */
         @media (max-width: 600px) {
-            .message {
-                max-width: 90%;
-            }
+            .message { max-width: 90%; }
+            #message-input { font-size: 0.9rem; }
         }
     </style>
 </head>
 <body>
-<div id="chat-header">
-    Chatting with <span id="partner-name">...</span>
-</div>
 
+<!-- Sticky navbar with Account button -->
+<header id="chat-header">
+    <div class="chat-title">
+        Chatting with <span id="partner-name">...</span>
+    </div>
+    <a href="/chat/usermenu/" class="account-btn" aria-label="Account">
+        <svg viewBox="0 0 24 24">
+            <circle cx="12" cy="8" r="4"/>
+            <path d="M4 20c0-4 4-6 8-6s8 2 8 6"/>
+        </svg>
+        Account
+    </a>
+</header>
+
+<!-- Messages -->
 <div id="messages"></div>
 
+<!-- Send form -->
 <form id="message-form">
-    <input type="text" id="message-input" placeholder="Type your message..." required />
+    <input
+            type="text"
+            id="message-input"
+            placeholder="Type your message..."
+            required
+    />
     <button type="submit">Send</button>
 </form>
 
+<!-- Leave Chat -->
 <button id="leave-chat">Leave Chat</button>
 
+<!-- Unchanged JavaScript -->
 <script>
     const messagesDiv = document.getElementById('messages');
     const partnerNameSpan = document.getElementById('partner-name');
@@ -164,6 +233,8 @@
                     const isCurrentUser = msg.sender_username === data.current_user;
                     const messageEl = document.createElement('div');
                     messageEl.className = `message ${isCurrentUser ? 'current-user' : 'other-user'}`;
+
+                    // no avatar injection any more
                     messageEl.innerHTML = `
               <div class="message-username">${isCurrentUser ? 'You' : msg.sender_username}</div>
               <div>${msg.text}</div>
