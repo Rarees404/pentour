@@ -1,83 +1,170 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Secure Chat - Home</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <title>Telepathy • Secure Chat</title>
+    <!-- Sci-Fi Font & Icons -->
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" crossorigin="anonymous" />
     <style>
+        /* Theme Variables */
+        :root {
+            --accent-cyan: #00e5ff;
+            --accent-magenta: #ff0080;
+            --text-main: #e0e0ff;
+            --text-alt: #8888aa;
+            --transition: 0.3s ease;
+        }
+        /* Page Reset */
+        * { margin:0; padding:0; box-sizing:border-box; }
         body {
-            margin: 0;
-            font-family: 'Inter', sans-serif;
-            background: linear-gradient(135deg, #1d3557, #457b9d);
-            color: #f1faee;
             display: flex;
-            flex-direction: column;
-            justify-content: center;
             align-items: center;
+            justify-content: center;
+            font-family: 'Orbitron', sans-serif;
+            color: var(--text-main);
+            background: #0a0a1f;
             height: 100vh;
+            overflow: hidden;
+            position: relative;
+        }
+        #planet-canvas {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: 0;
+        }
+        .content, .footer {
+            position: relative;
+            z-index: 1;
             text-align: center;
         }
-
+        .content {
+            max-width: 450px;
+            padding: 2rem;
+            background: rgba(18,18,41,0.8);
+            border: 1px solid var(--accent-cyan);
+            border-radius: 12px;
+            box-shadow: 0 0 20px var(--accent-cyan);
+            animation: fade-in 1s ease forwards;
+        }
+        @keyframes fade-in { from { opacity:0; transform:scale(0.95);} to { opacity:1; transform:scale(1);} }
         h1 {
             font-size: 3rem;
-            margin-bottom: 10px;
+            margin-bottom: 1rem;
+            color: var(--accent-cyan);
+            animation: flicker 4s infinite;
         }
-
-        p {
-            font-size: 1.25rem;
-            margin-bottom: 30px;
-            color: #a8dadc;
-        }
-
+        @keyframes flicker { 0%,18%,22%,25%,53%,57%,100%{opacity:1;}20%,24%,55%{opacity:0.4;} }
+        p { font-size:1.2rem; margin-bottom:2rem; color:var(--text-alt); line-height:1.4; }
         .btn {
-            padding: 14px 30px;
-            font-size: 1rem;
-            font-weight: 600;
-            color: #1d3557;
-            background-color: #f1faee;
-            border: none;
-            border-radius: 30px;
-            text-decoration: none;
-            transition: all 0.3s ease-in-out;
+            display:inline-flex; align-items:center; gap:0.5rem;
+            padding:1rem 2rem; font-size:1rem; font-weight:700;
+            color:#0a0a1f; background:var(--accent-cyan);
+            border:none; border-radius:30px; text-transform:uppercase;
+            transition:var(--transition); box-shadow:0 0 10px var(--accent-cyan);
         }
-
-        .btn:hover {
-            background-color: #a8dadc;
-            transform: scale(1.05);
-        }
-
-        .footer {
-            position: absolute;
-            bottom: 20px;
-            color: #f1faee;
-            font-size: 0.9rem;
-        }
-
-        @media (max-width: 600px) {
-            h1 {
-                font-size: 2rem;
-            }
-
-            p {
-                font-size: 1rem;
-            }
-
-            .btn {
-                padding: 12px 24px;
-            }
-        }
+        .btn:hover { background:var(--accent-magenta); box-shadow:0 0 20px var(--accent-magenta); transform:scale(1.05); }
+        .footer { position:absolute; bottom:1rem; width:100%; text-align:center; font-size:0.9rem; color:var(--text-alt);}
     </style>
 </head>
 <body>
+<canvas id="planet-canvas"></canvas>
 <div class="content">
     <h1>Telepathy</h1>
-    <p>Anonymous, private, and encrypted messaging — built for privacy lovers.</p>
-    <a href="/chat/" class="btn">Enter Chat</a>
+    <p>Anonymous, private &amp; encrypted messaging — built for privacy lovers.</p>
+    <a href="/chat/" class="btn"><i class="fas fa-paper-plane"></i> Enter Secure Chat</a>
 </div>
-<div class="footer">
-    &copy; 2025 Secure Chat. All rights reserved.
-</div>
+<div class="footer">&copy; 2025 Secure Chat. All rights reserved.</div>
+<script>
+    const canvas = document.getElementById('planet-canvas');
+    const ctx = canvas.getContext('2d');
+    let width, height;
+    let nodes = [];
+    let messages = [];
+    const nodeCount = 10;
+
+    const mapImg = new Image();
+    mapImg.crossOrigin = 'anonymous';
+    mapImg.src = 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/80/World_map_-_low_resolution.svg/1280px-World_map_-_low_resolution.svg.png';
+
+    function init() {
+        width = canvas.width = window.innerWidth;
+        height = canvas.height = window.innerHeight;
+        nodes = [];
+        for (let i = 0; i < 20; i++) {
+            nodes.push({
+                x: Math.random() * width * 0.8 + width * 0.1,
+                y: Math.random() * height * 0.8 + height * 0.1
+            });
+        }
+        messages = [];
+        spawnMessage();
+    }
+
+    function spawnMessage() {
+        if (nodes.length < 2) return;
+        const from = nodes[Math.floor(Math.random() * nodes.length)];
+        let to = nodes[Math.floor(Math.random() * nodes.length)];
+        while (to === from) {
+            to = nodes[Math.floor(Math.random() * nodes.length)];
+        }
+        messages.push({ from, to, t: 0 });
+        // Schedule next
+        setTimeout(spawnMessage, 800);
+    }
+
+    function draw() {
+        // clear
+        ctx.clearRect(0, 0, width, height);
+        // draw map
+        if (mapImg.complete) {
+            // brighten the map
+            ctx.filter = 'brightness(1.5)';
+            ctx.globalAlpha = 1;  // fully opaque
+            ctx.drawImage(mapImg, 0, 0, width, height);
+            ctx.filter = 'none';
+        }
+        // draw nodes
+        nodes.forEach(n => {
+            ctx.beginPath();
+            ctx.arc(n.x, n.y, 6, 0, 2 * Math.PI);
+            ctx.fillStyle = 'rgba(0,229,255,0.5)';
+            ctx.fill();
+        });
+        // draw messages
+        messages.forEach((m, i) => {
+            m.t += 0.01; // linear speed
+            if (m.t >= 1) {
+                messages.splice(i, 1);
+                return;
+            }
+            const x = m.from.x + (m.to.x - m.from.x) * m.t;
+            const y = m.from.y + (m.to.y - m.from.y) * m.t;
+            ctx.beginPath();
+            ctx.arc(x, y, 5, 0, 2 * Math.PI);
+            ctx.fillStyle = 'rgba(255,128,0,0.9)';
+            ctx.shadowColor = 'rgba(255,128,0,0.6)'; ctx.shadowBlur = 8;
+            ctx.fill();
+            ctx.shadowBlur = 0;
+        });
+        requestAnimationFrame(draw);
+    }
+
+    // Initialize once map loaded
+    mapImg.onload = () => {
+        init();
+        draw();
+    };
+    mapImg.onerror = () => {
+        console.warn('Map load failed');
+        init();
+        draw();
+    };
+    window.addEventListener('resize', () => {
+        init();
+    });
+</script>
 </body>
 </html>
