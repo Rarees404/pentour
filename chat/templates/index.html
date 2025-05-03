@@ -4,11 +4,9 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Telepathy • Secure Chat</title>
-    <!-- Sci-Fi Font & Icons -->
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" crossorigin="anonymous" />
     <style>
-        /* Theme Variables */
         :root {
             --accent-cyan: #00e5ff;
             --accent-magenta: #ff0080;
@@ -16,7 +14,6 @@
             --text-alt: #8888aa;
             --transition: 0.3s ease;
         }
-        /* Page Reset */
         * { margin:0; padding:0; box-sizing:border-box; }
         body {
             display: flex;
@@ -111,31 +108,25 @@
             to = nodes[Math.floor(Math.random() * nodes.length)];
         }
         messages.push({ from, to, t: 0 });
-        // Schedule next
         setTimeout(spawnMessage, 800);
     }
 
     function draw() {
-        // clear
         ctx.clearRect(0, 0, width, height);
-        // draw map
         if (mapImg.complete) {
-            // brighten the map
             ctx.filter = 'brightness(1.5)';
             ctx.globalAlpha = 1;  // fully opaque
             ctx.drawImage(mapImg, 0, 0, width, height);
             ctx.filter = 'none';
         }
-        // draw nodes
         nodes.forEach(n => {
             ctx.beginPath();
             ctx.arc(n.x, n.y, 6, 0, 2 * Math.PI);
             ctx.fillStyle = 'rgba(0,229,255,0.5)';
             ctx.fill();
         });
-        // draw messages
         messages.forEach((m, i) => {
-            m.t += 0.01; // linear speed
+            m.t += 0.01;
             if (m.t >= 1) {
                 messages.splice(i, 1);
                 return;
@@ -152,7 +143,6 @@
         requestAnimationFrame(draw);
     }
 
-    // Initialize once map loaded
     mapImg.onload = () => {
         init();
         draw();
