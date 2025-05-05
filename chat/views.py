@@ -53,6 +53,7 @@ User = get_user_model()
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives import serialization
 
+  
 class RegisterUserView(CreateAPIView):
     queryset = User.objects.all()
     serializer_class = UserSerializer
@@ -65,39 +66,47 @@ class RegisterUserView(CreateAPIView):
             return Response({"message": "Username already exists"}, status=status.HTTP_400_BAD_REQUEST)
 
         # Generate RSA Key Pair
-        private_key = rsa.generate_private_key(
+        rsa_private_key = rsa.generate_private_key(
             public_exponent=65537,
             key_size=4096
         )
         logger.debug(f"[REGISTER] RSA key pair generated for user: {username}")
 
-        # Serialize public key to store in DB
-        public_pem = private_key.public_key().public_bytes(
+        # Generate ECDH Key Pair for key exchange
+        ecdh_private_key = generate_ecdh_key()
+        ecdh_public_key = ecdh_private_key.public_key()
+
+        # Sign the ECDH public key with the RSA private key
+        ecdh_public_pem = serialize_public_key(ecdh_public_key)
+        ecdh_signature = sign_data(rsa_private_key, ecdh_public_pem.encode())
+
+        # Serialize RSA public key to store in DB
+        rsa_public_pem = rsa_private_key.public_key().public_bytes(
             encoding=serialization.Encoding.PEM,
             format=serialization.PublicFormat.SubjectPublicKeyInfo
         ).decode()
 
-        # Serialize private key to store on disk
-        private_pem = private_key.private_bytes(
+        # Serialize RSA private key to store on disk
+        rsa_private_pem = rsa_private_key.private_bytes(
             encoding=serialization.Encoding.PEM,
             format=serialization.PrivateFormat.PKCS8,
             encryption_algorithm=serialization.NoEncryption()
         )
 
         # Create user with public key
-        user = User(username=username, public_key=public_pem)
+        user = User(username=username, public_key=rsa_public_pem, ecdh_signature=base64.b64encode(ecdh_signature).decode())
         user.set_password(password)
         user.save()
-        logger.info(f"[REGISTER] User created and public key saved for: {username}")
+        logger.info(f"[REGISTER] User created and public RSA key saved for: {username}")
 
-        # Save private key to a file
+        # Save RSA private key to a file
         key_dir = os.path.join("chat", "client", "enc_test_keygen", "static", "keys")
         os.makedirs(key_dir, exist_ok=True)
         key_path = os.path.join(key_dir, f"{username}_private_key.pem")
         with open(key_path, "wb") as f:
-            f.write(private_pem)
+            f.write(rsa_private_pem)
 
-        logger.info(f"[REGISTER] Private key saved at: {os.path.join(key_dir, f'{username}_private_key.pem')}")
+        logger.info(f"[REGISTER] RSA Private key saved at: {os.path.join(key_dir, f'{username}_private_key.pem')}")
         return Response({"message": "Registration successful!"}, status=status.HTTP_201_CREATED)
 
 
@@ -114,42 +123,52 @@ class LoginView(APIView):
             token, created = Token.objects.get_or_create(user=user)
 
             # Generate new RSA key pair
-            private_key = rsa.generate_private_key(
+            rsa_private_key = rsa.generate_private_key(
                 public_exponent=65537,
                 key_size=4096
             )
             logger.debug(f"[LOGIN] New RSA key pair generated for user: {username}")
 
-            # Serialize public key
-            public_pem = private_key.public_key().public_bytes(
+            # Generate new ECDH key pair for key exchange
+            ecdh_private_key = generate_ecdh_key()
+            ecdh_public_key = ecdh_private_key.public_key()
+
+            # Sign the ECDH public key with the new RSA private key
+            ecdh_public_pem = serialize_public_key(ecdh_public_key)
+            ecdh_signature = sign_data(rsa_private_key, ecdh_public_pem.encode())
+
+            # Serialize the RSA public key
+            rsa_public_pem = rsa_private_key.public_key().public_bytes(
                 encoding=serialization.Encoding.PEM,
                 format=serialization.PublicFormat.SubjectPublicKeyInfo
             ).decode()
 
-            # Serialize private key
-            private_pem = private_key.private_bytes(
+            # Serialize RSA private key
+            rsa_private_pem = rsa_private_key.private_bytes(
                 encoding=serialization.Encoding.PEM,
                 format=serialization.PrivateFormat.PKCS8,
                 encryption_algorithm=serialization.NoEncryption()
             )
 
-            # Replace public key in DB
-            user.public_key = public_pem
+            # Update the user's public RSA key in DB and save the signature
+            user.public_key = rsa_public_pem
+            user.ecdh_signature = base64.b64encode(ecdh_signature).decode()
             user.save()
-            logger.info(f"[LOGIN] Public key updated for user: {username}")
+            logger.info(f"[LOGIN] Public RSA key and ECDH signature updated for user: {username}")
 
-            # Overwrite private key file on disk
+            # Overwrite private RSA key file on disk
             key_dir = os.path.join("chat", "client", "enc_test_keygen", "static", "keys")
             os.makedirs(key_dir, exist_ok=True)
             key_path = os.path.join(key_dir, f"{username}_private_key.pem")
             with open(key_path, "wb") as f:
-                f.write(private_pem)
-            logger.info(f"[LOGIN] Private key overwritten at: {key_path}")
+                f.write(rsa_private_pem)
+            logger.info(f"[LOGIN] RSA Private key overwritten at: {key_path}")
 
             return Response({"token": token.key})
 
         logger.warning(f"[LOGIN] Login failed for user: {username}")
         return Response({"message": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
+
 
 
 

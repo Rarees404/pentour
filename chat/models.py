@@ -11,6 +11,7 @@ import uuid
 class User(AbstractUser):
     public_key = models.TextField(null=True, blank=True)
     private_kyte = models.TextField(null=True, blank=True)# Stores user's RSA public key
+    ecdh_signature = models.TextField(null=True, blank=True)
 
     # Avoid conflicts with Django's built-in User model
     groups = models.ManyToManyField(Group, related_name="chat_users", blank=True)
@@ -26,4 +27,3 @@ class Message(models.Model):
     aes_nonce = models.TextField(null=True, blank=True)
     aes_tag = models.TextField(null=True, blank=True)
     timestamp = models.DateTimeField(auto_now_add=True)
-
