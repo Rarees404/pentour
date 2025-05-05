@@ -82,7 +82,7 @@ class RegisterUserView(CreateAPIView):
 
         # Sign the ECDH public key with the RSA private key
         ecdh_public_pem = serialize_public_key(ecdh_public_key)
-        ecdh_signature = sign_data(rsa_private_key, ecdh_public_pem.encode())
+        ecdh_signature = sign_data(rsa_private_key, ecdh_public_pem)
 
         # Serialize RSA public key to store in DB
         rsa_public_pem = rsa_private_key.public_key().public_bytes(
@@ -139,7 +139,7 @@ class LoginView(APIView):
 
             # Sign the ECDH public key with the new RSA private key
             ecdh_public_pem = serialize_public_key(ecdh_public_key)
-            ecdh_signature = sign_data(rsa_private_key, ecdh_public_pem.encode())
+            ecdh_signature = sign_data(rsa_private_key, ecdh_public_pem)
 
             # Serialize the RSA public key
             rsa_public_pem = rsa_private_key.public_key().public_bytes(
