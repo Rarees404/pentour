@@ -41,6 +41,8 @@ logger = logging.getLogger(__name__)
 #queue = []        # Stores waiting users for chat sessions
 #active_chats = {} # Maps chat IDs to a tuple of user objects (user1, user2)
 #queue_lock = Lock()
+sent_messages_cache = {}  # {msg.id: plaintext}
+
 
 
 # Home Page View - renders index.html
@@ -309,6 +311,7 @@ class SendMessageView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
+        global sent_messages_cache 
         try:
             message_text = request.data.get("message")
             chat_id = request.data.get("chat_id")
@@ -330,8 +333,8 @@ class SendMessageView(APIView):
             encrypted_msg = encrypt_with_aes(aes_key, message_text)
             logger.debug(f"[SEND] Using public key of {receiver.username} for encryption.")
             # Load receiver's public RSA key from file
-            with open("chat/client/enc_test_keygen/static/keys/public_key.pem", "r") as f:
-                public_key_pem = f.read()
+            public_key_pem = receiver.public_key
+            logger.debug(f"[SEND] Loaded public key for user {receiver.username} 31313131")
 
             # Encrypt AES key using RSA public key
             encrypted_key = encrypt_aes_key_with_rsa(public_key_pem, aes_key)
@@ -379,25 +382,29 @@ class GetMessagesView(APIView):
         messages_data = []
 
         # Load the private key of the current user
-        with open("chat/client/enc_test_keygen/static/keys/private_key.pem", "r") as f:
+        with open(f"chat/client/enc_test_keygen/static/keys/{request.user.username}_private_key.pem", "r") as f:
             private_key_pem = f.read()
         logger.debug(f"[GET] Loaded private key for user {request.user.username}")
 
         for msg in messages:
             logger.debug(f"[GET] Attempting to decrypt message ID {msg.id}")
-            try:
-                # Decrypt AES key
-                aes_key = decrypt_aes_key_with_rsa(private_key_pem, msg.encrypted_symmetric_key)
+            # Only decrypt if the current user is the *receiver*
+            if msg.receiver == request.user:
+                try:
+                    aes_key = decrypt_aes_key_with_rsa(private_key_pem, msg.encrypted_symmetric_key)
 
-                # Decrypt the message using stored nonce and tag
-                decrypted_text = decrypt_with_aes(aes_key, {
-                    "ciphertext": msg.encrypted_text,
-                    "nonce": msg.aes_nonce,
-                    "tag": msg.aes_tag
-                })
-            except Exception as e:
-                decrypted_text = "[Decryption failed]"
-                print("Decryption error:", e)
+                    decrypted_text = decrypt_with_aes(aes_key, {
+                        "ciphertext": msg.encrypted_text,
+                        "nonce": msg.aes_nonce,
+                        "tag": msg.aes_tag
+                    })
+                except Exception as e:
+                    decrypted_text = "[Decryption failed]"
+                    logger.warning(f"Decryption failed for message {msg.id}: {str(e)}")
+            else:
+                # If sender is current user, just show "[Sent]" or store plaintext locally on the frontend
+                decrypted_text = "[Sent]"
+
 
             messages_data.append({
                 'id': msg.id,
