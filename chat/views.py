@@ -341,7 +341,7 @@ class SendMessageView(APIView):
 
             print("Encrypted AES key:", encrypted_key)
 
-            Message.objects.create(
+            msg =Message.objects.create(
                 sender=request.user,
                 receiver=receiver,
                 encrypted_text=encrypted_msg["ciphertext"],
@@ -349,6 +349,7 @@ class SendMessageView(APIView):
                 aes_nonce=encrypted_msg["nonce"],
                 aes_tag=encrypted_msg["tag"]
             )
+            sent_messages_cache[msg.id] = message_text
             logger.info(f"[SEND] Message from {request.user.username} to {receiver.username} stored in DB.")
 
 
@@ -403,7 +404,8 @@ class GetMessagesView(APIView):
                     logger.warning(f"Decryption failed for message {msg.id}: {str(e)}")
             else:
                 # If sender is current user, just show "[Sent]" or store plaintext locally on the frontend
-                decrypted_text = "[Sent]"
+                decrypted_text = sent_messages_cache.get(msg.id, "[Sent]")
+
 
 
             messages_data.append({
