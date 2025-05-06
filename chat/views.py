@@ -251,123 +251,159 @@ class LeaveChatView(APIView):
 
 # Send Message View - saves a message in the database
 from chat.client.enc_test_keygen.RSAEncryptor import (
-    generate_aes_key, encrypt_with_aes, encrypt_aes_key_with_rsa
+    generate_aes_key, encrypt_with_aes, encrypt_aes_key_with_rsa, sign_message, verify_signature
 )
+
 
 class SendMessageView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
-        global sent_messages_cache 
         try:
+            logger.info("[SEND] Starting send flow for user '%s'", request.user.username)
             message_text = request.data.get("message")
-            chat_id = request.data.get("chat_id")
-            logger.info(f"[SEND] User {request.user.username} is sending a message to chat {chat_id}")
-            print("Message:", message_text)
-            print("Chat ID:", chat_id)
+            chat_id      = request.data.get("chat_id")
 
+            logger.debug("[SEND] message_text='%s', chat_id='%s'", message_text, chat_id)
             if chat_id not in active_chats:
-                return Response({"message": "Invalid chat ID."}, status=status.HTTP_400_BAD_REQUEST)
+                logger.warning("[SEND] Invalid chat_id '%s'", chat_id)
+                return Response({"message": "Invalid chat ID."},
+                                status=status.HTTP_400_BAD_REQUEST)
 
             user1, user2 = active_chats[chat_id]
             if request.user not in (user1, user2):
-                return Response({"message": "You are not a participant of this chat."}, status=status.HTTP_403_FORBIDDEN)
+                logger.warning("[SEND] User '%s' not participant in chat '%s'", request.user.username, chat_id)
+                return Response({"message": "Not a participant."},
+                                status=status.HTTP_403_FORBIDDEN)
 
             receiver = user2 if request.user == user1 else user1
-            print("Encrypting for receiver:", receiver.username)
+            logger.info("[SEND] Encrypting message for receiver '%s'", receiver.username)
 
+            # 1) Generate AES key
             aes_key = generate_aes_key()
-            encrypted_msg = encrypt_with_aes(aes_key, message_text)
-            logger.debug(f"[SEND] Using public key of {receiver.username} for encryption.")
-            # Load receiver's public RSA key from file
-            public_key_pem = receiver.public_key
-            logger.debug(f"[SEND] Loaded public key for user {receiver.username} 31313131")
+            logger.debug("[SEND] Generated AES key (32 bytes)")
 
-            # Encrypt AES key using RSA public key
-            encrypted_key = encrypt_aes_key_with_rsa(public_key_pem, aes_key)
+            # 2) AES-encrypt the message
+            encrypted = encrypt_with_aes(aes_key, message_text)
+            logger.debug(
+                "[SEND] AES encryption complete: ciphertext_len=%d, nonce=%s, tag=%s",
+                len(encrypted["ciphertext"]), encrypted["nonce"], encrypted["tag"]
+            )
 
-            print("Encrypted AES key:", encrypted_key)
+            # 3) RSA-encrypt the AES key
+            public_pem = receiver.public_key
+            encrypted_key = encrypt_aes_key_with_rsa(public_pem, aes_key)
+            logger.debug(
+                "[SEND] RSA encryption of AES key complete: encrypted_key_len=%d",
+                len(encrypted_key)
+            )
 
-            msg =Message.objects.create(
+            # 4) Sign the plaintext message
+            priv_path = f"chat/client/enc_test_keygen/static/keys/{request.user.username}_private_key.pem"
+            with open(priv_path, "r") as f:
+                priv_pem = f.read()
+            signature = sign_message(priv_pem, message_text)
+            logger.debug("[SEND] Signature generated: signature_len=%d", len(signature))
+
+            # 5) Store in DB
+            msg = Message.objects.create(
                 sender=request.user,
                 receiver=receiver,
-                encrypted_text=encrypted_msg["ciphertext"],
+                encrypted_text=encrypted["ciphertext"],
                 encrypted_symmetric_key=encrypted_key,
-                aes_nonce=encrypted_msg["nonce"],
-                aes_tag=encrypted_msg["tag"]
+                aes_nonce=encrypted["nonce"],
+                aes_tag=encrypted["tag"],
+                signature=signature
             )
             sent_messages_cache[msg.id] = message_text
-            logger.info(f"[SEND] Message from {request.user.username} to {receiver.username} stored in DB.")
-
+            logger.info("[SEND] Stored Message(id=%d) with signature", msg.id)
 
             return Response({"message": "Message sent."}, status=status.HTTP_200_OK)
 
         except Exception as e:
-            print("SendMessageView ERROR:", str(e))  # Show in terminal
-            return Response({"error": "Something went wrong: " + str(e)}, status=500)
+            logger.error("[SEND] ERROR: %s", str(e), exc_info=True)
+            return Response({"error": str(e)}, status=500)
 
 
-# Get Messages View - retrieves all messages for a given chat session
 from chat.client.enc_test_keygen.RSAEncryptor import (
     decrypt_with_aes, decrypt_aes_key_with_rsa
 )
+
 
 class GetMessagesView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request, chat_id):
+        logger.info("[GET] Retrieving messages for chat '%s' and user '%s'", chat_id, request.user.username)
+
         if chat_id not in active_chats:
+            logger.warning("[GET] Chat '%s' not found", chat_id)
             return Response({"error": "Chat not found"}, status=status.HTTP_404_NOT_FOUND)
 
         user1, user2 = active_chats[chat_id]
         if request.user not in (user1, user2):
+            logger.warning("[GET] User '%s' not participant in chat '%s'", request.user.username, chat_id)
             return Response({"error": "Not a participant"}, status=status.HTTP_403_FORBIDDEN)
 
-        messages = Message.objects.filter(
+        msgs = Message.objects.filter(
             Q(sender=user1, receiver=user2) | Q(sender=user2, receiver=user1)
-        ).order_by('timestamp')
+        ).order_by("timestamp")
 
-        messages_data = []
+        # Load private key
+        priv_path = f"chat/client/enc_test_keygen/static/keys/{request.user.username}_private_key.pem"
+        with open(priv_path, "r") as f:
+            private_pem = f.read()
+        logger.debug("[GET] Loaded private key for '%s'", request.user.username)
 
-        # Load the private key of the current user
-        with open(f"chat/client/enc_test_keygen/static/keys/{request.user.username}_private_key.pem", "r") as f:
-            private_key_pem = f.read()
-        logger.debug(f"[GET] Loaded private key for user {request.user.username}")
-
-        for msg in messages:
-            logger.debug(f"[GET] Attempting to decrypt message ID {msg.id}")
-            # Only decrypt if the current user is the *receiver*
-            if msg.receiver == request.user:
+        out = []
+        for m in msgs:
+            logger.debug("[GET] Processing Message(id=%d)", m.id)
+            if m.receiver == request.user:
                 try:
-                    aes_key = decrypt_aes_key_with_rsa(private_key_pem, msg.encrypted_symmetric_key)
+                    # RSA-decrypt AES key
+                    logger.debug("[GET] RSA-decrypting AES key for Message(id=%d)", m.id)
+                    aes_key = decrypt_aes_key_with_rsa(private_pem, m.encrypted_symmetric_key)
+                    logger.debug("[GET] AES key decrypted for Message(id=%d)", m.id)
 
-                    decrypted_text = decrypt_with_aes(aes_key, {
-                        "ciphertext": msg.encrypted_text,
-                        "nonce": msg.aes_nonce,
-                        "tag": msg.aes_tag
+                    # AES-decrypt message
+                    logger.debug("[GET] AES-decrypting ciphertext for Message(id=%d)", m.id)
+                    plaintext = decrypt_with_aes(aes_key, {
+                        "ciphertext": m.encrypted_text,
+                        "nonce": m.aes_nonce,
+                        "tag": m.aes_tag
                     })
+                    logger.debug("[GET] AES decryption complete, plaintext_len=%d", len(plaintext))
+
+                    # Verify signature
+                    logger.debug("[GET] Verifying signature for Message(id=%d)", m.id)
+                    if verify_signature(m.sender.public_key, plaintext, m.signature):
+                        logger.debug("[GET] Signature valid for Message(id=%d)", m.id)
+                    else:
+                        logger.warning("[GET] Signature INVALID for Message(id=%d) — possible tampering", m.id)
+                        plaintext = "[Tampered] " + plaintext
+
                 except Exception as e:
-                    decrypted_text = "[Decryption failed]"
-                    logger.warning(f"Decryption failed for message {msg.id}: {str(e)}")
+                    logger.error("[GET] Decryption/Verification failed for Message(id=%d): %s", m.id, e)
+                    plaintext = "[Decryption failed]"
+
             else:
-                # If sender is current user, just show "[Sent]" or store plaintext locally on the frontend
-                decrypted_text = sent_messages_cache.get(msg.id, "[Sent]")
+                plaintext = sent_messages_cache.get(m.id, "[Sent]")
 
-
-
-            messages_data.append({
-                'id': msg.id,
-                'sender_id': msg.sender.id,
-                'sender_username': msg.sender.username,
-                'text': decrypted_text,
-                'timestamp': msg.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
-                'is_current_user': msg.sender == request.user
+            out.append({
+                "id": m.id,
+                "sender_id": m.sender.id,
+                "sender_username": m.sender.username,
+                "text": plaintext,
+                "timestamp": m.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+                "is_current_user": (m.sender == request.user)
             })
 
+        partner = user2.username if request.user == user1 else user1.username
+        logger.info("[GET] Retrieved %d messages for chat '%s'", len(out), chat_id)
         return Response({
-            'messages': messages_data,
-            'current_user': request.user.username,
-            'partner': user2.username if request.user == user1 else user1.username
+            "current_user": request.user.username,
+            "partner": partner,
+            "messages": out
         })
 
 @login_required

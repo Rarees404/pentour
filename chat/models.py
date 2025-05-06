@@ -31,5 +31,6 @@ class Message(models.Model):
     encrypted_symmetric_key = models.TextField(null=True, blank=True)
     aes_nonce = models.TextField(null=True, blank=True)
     aes_tag = models.TextField(null=True, blank=True)
+    signature = models.TextField(null=True, blank=True)
     timestamp = models.DateTimeField(auto_now_add=True)
 
