@@ -21,6 +21,7 @@ from chat.views import home  # Import the homepage view
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("chat/", include("chat.urls")),  # Keep chat routes
-    path("", home, name="home"),  # Add homepage route
+    path("", home, name="home"), # Add homepage route
+
 ]
 
