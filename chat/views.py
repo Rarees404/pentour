@@ -207,59 +207,6 @@ class JoinChatView(APIView):
         }, status=status.HTTP_200_OK)
 
 
-
-
-# Matchmaking Queue View
-class MatchUserView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
-
-    def post(self, request):
-
-        user = request.user
-
-        with queue_lock:  # Prevent race conditions
-            # Check if user is already in a chat
-            for chat_id, (user1, user2) in active_chats.items():
-                if user in (user1, user2):
-                    partner = user2 if user == user1 else user1
-                    return Response({
-                        "chat_id": chat_id,
-                        "partner": partner.username
-                    }, status=status.HTTP_200_OK)
-
-            # Remove user if already in queue (prevent duplicates)
-            if user in queue:
-                queue.remove(user)
-
-            # Add to queue
-            queue.append(user)
-
-            # Try to match if we have 2+ users
-            if len(queue) >= 2:
-                user1 = queue.pop(0)
-                user2 = queue.pop(0)
-                chat_id = f"{user1.id}_{user2.id}_{int(time.time())}"
-                active_chats[chat_id] = (user1, user2)
-                return Response({
-                    "chat_id": chat_id,
-                    "partner": user2.username if user == user1 else user1.username
-                }, status=status.HTTP_200_OK)
-
-        return Response({"message": "Waiting for a match..."}, status=status.HTTP_202_ACCEPTED)
-
-# Add this new view for leaving queue
-class LeaveQueueView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
-
-    def post(self, request):
-        user = request.user
-        with queue_lock:
-            if user in queue:
-                queue.remove(user)
-                return Response({"message": "Left queue"}, status=status.HTTP_200_OK)
-        return Response({"message": "Not in queue"}, status=status.HTTP_400_BAD_REQUEST)
-
-
 # Check Active Chat View
 class CheckChatView(APIView):
     permission_classes = [permissions.IsAuthenticated]

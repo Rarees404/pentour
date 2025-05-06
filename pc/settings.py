@@ -26,7 +26,7 @@ SECRET_KEY = 'django-insecure-ky^56xg5&kg2&8ualp++lplthx@*x7s%g)7eyhq*&(@bohhcle
 DEBUG = False 
 
 
-ALLOWED_HOSTS = ["cemtest1.xyz", "178.238.108.26", "localhost", "127.0.0.1","10.10.9.108", "188.91.214.104"]
+ALLOWED_HOSTS = ["my_database", "178.238.108.26", "localhost", "127.0.0.1","10.10.9.108", "188.91.214.104"]
 
 LOGGING = {
     'version': 1,
@@ -102,14 +102,15 @@ ASGI_APPLICATIOn='pc.asgi.application'
 # Change this based on your database credentials to host it locally!
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.environ.get('POSTGRES_DB', 'c_name'),
-        'USER': os.environ.get('POSTGRES_USER', 'cemandrewgultekin'),  # Change from 'user'
-        'PASSWORD': os.environ.get('POSTGRES_PASSWORD', 'mysecretpassword'),
-        'HOST': os.environ.get('POSTGRES_HOST', 'localhost'),
-        'PORT': os.environ.get('POSTGRES_PORT', '5432'),
+        'ENGINE':   'django.db.backends.postgresql',
+        'NAME':     'my_database',       # your database name
+        'USER':     'myproject_user',    # the Postgres role you made
+        'PASSWORD': 'mysecretpassword',  # that role’s password
+        'HOST':     'localhost',
+        'PORT':     '5432',
     }
 }
+
 
 
 
