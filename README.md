@@ -1,4 +1,4 @@
-# 🐧 Pentour
+# Telepathy
 
 🔗 [https://pengincontour.xyz](https://pengincontour.xyz)
 
