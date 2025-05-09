@@ -112,7 +112,7 @@ class LoginView(APIView):
         password = request.data.get("password")
 
         # Get IP address
-        # HTTP_X_FORWARDED_FOR is to get the real ip if behind a proxy.
+        # Use the real client’s IP if the app is behind a proxy, otherwise fall back to the direct IP
         ip = request.META.get("HTTP_X_FORWARDED_FOR", request.META.get("REMOTE_ADDR", "unknown"))
 
         now_time = time.time()
