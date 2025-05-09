@@ -1,7 +1,4 @@
 from django.contrib.auth import authenticate, get_user_model
-from django.utils.timezone import now
-from django.shortcuts import render
-from django.views.decorators.csrf import csrf_exempt
 from django.shortcuts import render
 from django.db.models import Q
 from rest_framework.permissions import IsAuthenticated
@@ -9,19 +6,21 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status, permissions
 from rest_framework.authtoken.models import Token
-from .models import Message
 from rest_framework.generics import CreateAPIView
 from .serializers import UserSerializer
 from .models import Message
 from threading import Lock
-import time
-import sys
 import os
 import uuid
 import logging
 logger = logging.getLogger(__name__)
+from collections import defaultdict
+import time
+import re
 
 
+# Track failed login attempts per IP: {ip: (last_attempt_time, wait_time)}
+failed_login_ips = defaultdict(lambda: {'last_time': 0, 'wait_time': 0, 'fail_count': 0})
 
 
 # In-memory storage for matchmaking; in production, consider a persistent solution.
@@ -59,6 +58,11 @@ class RegisterUserView(CreateAPIView):
     def create(self, request, *args, **kwargs):
         username = request.data.get("username")
         password = request.data.get("password")
+
+        # Backend input validation
+        if not is_valid_username(username):
+            return Response({"message": "Username contains invalid characters."}, status=400)
+
         logger.info(f"[REGISTER] New registration request for username: {username}")
         if User.objects.filter(username=username).exists():
             return Response({"message": "Username already exists"}, status=status.HTTP_400_BAD_REQUEST)
@@ -99,22 +103,62 @@ class RegisterUserView(CreateAPIView):
         logger.info(f"[REGISTER] Private key saved at: {os.path.join(key_dir, f'{username}_private_key.pem')}")
         return Response({"message": "Registration successful!"}, status=status.HTTP_201_CREATED)
 
+def is_valid_username(username):
+    return re.match(r'^[a-zA-Z0-9_]+$', username) is not None
 
-# User Login View
 class LoginView(APIView):
     def post(self, request):
         username = request.data.get("username")
         password = request.data.get("password")
-        user = authenticate(username=username, password=password)
-        logger.info(f"[LOGIN] Attempting login for username: {username}")
-        logger.warning(f"[LOGIN] Login failed for user: {username}")
 
+        # Get IP address
+        # HTTP_X_FORWARDED_FOR is to get the real ip if behind a proxy.
+        ip = request.META.get("HTTP_X_FORWARDED_FOR", request.META.get("REMOTE_ADDR", "unknown"))
+
+        now_time = time.time()
+        entry = failed_login_ips[ip]
+        fail_count = entry['fail_count']
+        last_time = entry['last_time']
+        wait_time = entry['wait_time']
+
+        # If fail count exceeds threshold and still in cooldown
+        if fail_count >= 3 and now_time < last_time + wait_time:
+            wait_remaining = int(last_time + wait_time - now_time)
+            return Response(
+                {"message": f"Too many failed attempts. Try again in {wait_remaining} seconds."},
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+
+        user = authenticate(username=username, password=password)
+        logger.info(f"[LOGIN] Attempting login from IP {ip} with username: {username}")
 
         if user is not None:
-            logger.info(f"[LOGIN] Login successful for user: {username}")
-            token, created = Token.objects.get_or_create(user=user)
+            logger.info(f"[LOGIN] Login successful for {username} from IP: {ip}")
+            token, _ = Token.objects.get_or_create(user=user)
+            failed_login_ips.pop(ip, None)  # Reset on success
             return Response({"token": token.key})
-        return Response({"message": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
+
+        # Login failed
+        entry['fail_count'] += 1
+
+        if entry['fail_count'] >= 3:
+            entry['wait_time'] = entry['wait_time'] * 2 if entry['wait_time'] else 10
+            entry['last_time'] = now_time
+            logger.warning(f"[LOGIN] IP {ip} exceeded login attempts. Timeout started for {entry['wait_time']}s")
+            return Response(
+                {"message": f"Too many failed attempts. Try again in {entry['wait_time']} seconds."},
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+
+        # If still below threshold, calculate remaining
+        remaining_attempts = max(0, 2 - entry['fail_count'])
+        logger.warning(
+            f"[LOGIN] Failed login for {username} from IP {ip} (Count={entry['fail_count']}, Attempts left={remaining_attempts})")
+        return Response({
+            "message": f"Invalid credentials. Remaining attempts before timeout: {remaining_attempts}"
+        }, status=status.HTTP_401_UNAUTHORIZED)
+
+
 
 
 

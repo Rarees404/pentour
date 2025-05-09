@@ -113,6 +113,13 @@
 </div>
 
 <script>
+
+    function isValidInput(text) {
+    // Only allow alphanumeric usernames to add frontend input sanitization.
+
+    return /^[a-zA-Z0-9_]+$/.test(text);
+    }
+
     function printStatus(message, color = "#0066cc") {
         const statusDiv = document.getElementById("status");
         statusDiv.innerText = message;
@@ -130,6 +137,11 @@
         event.preventDefault();
         const username = document.getElementById("username").value;
         const password = document.getElementById("password").value;
+
+        if (!isValidInput(username)) {
+            printStatus("Username can only contain letters, numbers, and underscores.", "red");
+            return;
+        }
 
         try {
             const response = await fetch("/chat/register/", {
@@ -154,6 +166,11 @@
         event.preventDefault();
         const username = document.getElementById("login-username").value;
         const password = document.getElementById("login-password").value;
+
+        if (!isValidInput(username)) {
+            printStatus("Username can only contain letters, numbers, and underscores.", "red");
+            return;
+        }
 
         try {
             const response = await fetch("/chat/login/", {
