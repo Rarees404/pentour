@@ -159,16 +159,31 @@
                     partnerNameSpan.textContent = data.partner;
                     localStorage.setItem('partner', data.partner);
                 }
-
+ #The updated chatbox.html replaces the insecure use of innerHTML—which allowed raw HTML (and potentially malicious scripts) to be injected—by using document.createTextNode() to safely insert user-generated content such as usernames, messages, and timestamps into the DOM. This change prevents cross-site scripting (XSS) attacks by ensuring that any HTML tags typed by users are rendered as plain text rather than being interpreted as executable code, while preserving the full chat functionality including message rendering, partner display, and chat joining.
                 data.messages.forEach(msg => {
                     const isCurrentUser = msg.sender_username === data.current_user;
+
                     const messageEl = document.createElement('div');
                     messageEl.className = `message ${isCurrentUser ? 'current-user' : 'other-user'}`;
-                    messageEl.innerHTML = `
-              <div class="message-username">${isCurrentUser ? 'You' : msg.sender_username}</div>
-              <div>${msg.text}</div>
-              <div class="message-time">${msg.timestamp}</div>
-            `;
+
+                    // Username
+                    const usernameEl = document.createElement('div');
+                    usernameEl.className = 'message-username';
+                    usernameEl.appendChild(document.createTextNode(isCurrentUser ? 'You' : msg.sender_username));
+
+                    // Message Text
+                    const textEl = document.createElement('div');
+                    textEl.appendChild(document.createTextNode(msg.text));
+
+                    // Timestamp
+                    const timeEl = document.createElement('div');
+                    timeEl.className = 'message-time';
+                    timeEl.appendChild(document.createTextNode(msg.timestamp));
+
+                    messageEl.appendChild(usernameEl);
+                    messageEl.appendChild(textEl);
+                    messageEl.appendChild(timeEl);
+
                     messagesDiv.appendChild(messageEl);
                 });
 
