@@ -73,6 +73,7 @@ User = get_user_model()
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives import serialization
 
+
 class RegisterUserView(CreateAPIView):
     queryset = User.objects.all()
     serializer_class = UserSerializer
@@ -152,7 +153,6 @@ class LoginView(APIView):
         return Response({'token': token.key})
 
 
-
 class UserMenuView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -176,7 +176,6 @@ class CreateChatView(APIView):
         chat_id = str(uuid.uuid4())  # generate unique ID
         active_chats[chat_id] = [request.user]  # store creator
         return Response({"chat_id": chat_id}, status=status.HTTP_201_CREATED)
-
 
 
 class JoinChatView(APIView):
@@ -225,6 +224,7 @@ class CheckChatView(APIView):
                 }, status=status.HTTP_200_OK)
         return Response({"message": "No active chat found."}, status=status.HTTP_404_NOT_FOUND)
 
+
 # Leave Chat View - deletes the chat session and clears the message history
 class LeaveChatView(APIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -249,6 +249,7 @@ class LeaveChatView(APIView):
 
         return Response({"message": "No active chat to leave."}, status=status.HTTP_400_BAD_REQUEST)
 
+
 # Send Message View - saves a message in the database
 from chat.client.enc_test_keygen.RSAEncryptor import (
     generate_aes_key, encrypt_with_aes, encrypt_aes_key_with_rsa, sign_message, verify_signature
@@ -262,7 +263,7 @@ class SendMessageView(APIView):
         try:
             logger.info("[SEND] Starting send flow for user '%s'", request.user.username)
             message_text = request.data.get("message")
-            chat_id      = request.data.get("chat_id")
+            chat_id = request.data.get("chat_id")
 
             logger.debug("[SEND] message_text='%s', chat_id='%s'", message_text, chat_id)
             if chat_id not in active_chats:
