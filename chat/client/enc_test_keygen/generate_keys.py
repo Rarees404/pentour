@@ -32,3 +32,4 @@ with open("public_key.pem", "wb") as public_file:
 print("RSA Key Pair Generated!")
 print("Private Key: private_key.pem (DO NOT SHARE)")
 print("Public Key: public_key.pem (Send to Server)")
+

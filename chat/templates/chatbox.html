@@ -188,48 +188,68 @@
     partnerNameSpan.textContent = storedPartner || 'Unknown';
 
     async function fetchMessages() {
-        try {
-            const response = await fetch(`/chat/get-messages/${chatId}/`, {
-                headers: { 'Authorization': 'Token ' + token }
+    try {
+        const response = await fetch(`/chat/get-messages/${chatId}/`, {
+            headers: { 'Authorization': 'Token ' + token }
+        });
+
+        if (response.status === 404) {
+            alert("Your chat partner has left.");
+            localStorage.clear();
+            clearInterval(pollInterval);
+            window.location.href = "/";
+            return;
+        }
+
+        if (response.ok) {
+            const data = await response.json();
+            messagesDiv.innerHTML = '';
+
+            // Update partner name if present
+            if (data.partner) {
+                partnerNameSpan.textContent = data.partner;
+                localStorage.setItem('partner', data.partner);
+            }
+
+            // Render each message safely
+            data.messages.forEach(msg => {
+                const isCurrentUser = msg.sender_username === data.current_user;
+
+                // Container for this message
+                const messageEl = document.createElement('div');
+                messageEl.className = `message ${isCurrentUser ? 'current-user' : 'other-user'}`;
+
+                // Username element
+                const usernameEl = document.createElement('div');
+                usernameEl.className = 'message-username';
+                usernameEl.appendChild(
+                    document.createTextNode(isCurrentUser ? 'You' : msg.sender_username)
+                );
+
+                // Message text element
+                const textEl = document.createElement('div');
+                textEl.appendChild(document.createTextNode(msg.text));
+
+                // Timestamp element
+                const timeEl = document.createElement('div');
+                timeEl.className = 'message-time';
+                timeEl.appendChild(document.createTextNode(msg.timestamp));
+
+                // Assemble and append
+                messageEl.appendChild(usernameEl);
+                messageEl.appendChild(textEl);
+                messageEl.appendChild(timeEl);
+                messagesDiv.appendChild(messageEl);
             });
 
-            if (response.status === 404) {
-                alert("Your chat partner has left.");
-                localStorage.clear();
-                clearInterval(pollInterval);
-                window.location.href = "/";
-                return;
-            }
-
-            if (response.ok) {
-                const data = await response.json();
-                messagesDiv.innerHTML = '';
-
-                if (data.partner) {
-                    partnerNameSpan.textContent = data.partner;
-                    localStorage.setItem('partner', data.partner);
-                }
-
-                data.messages.forEach(msg => {
-                    const isCurrentUser = msg.sender_username === data.current_user;
-                    const messageEl = document.createElement('div');
-                    messageEl.className = `message ${isCurrentUser ? 'current-user' : 'other-user'}`;
-
-                    // no avatar injection any more
-                    messageEl.innerHTML = `
-              <div class="message-username">${isCurrentUser ? 'You' : msg.sender_username}</div>
-              <div>${msg.text}</div>
-              <div class="message-time">${msg.timestamp}</div>
-            `;
-                    messagesDiv.appendChild(messageEl);
-                });
-
-                messagesDiv.scrollTop = messagesDiv.scrollHeight;
-            }
-        } catch (err) {
-            console.error("Error fetching messages:", err);
+            // Scroll to the bottom so the newest messages are visible
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
         }
+    } catch (err) {
+        console.error("Error fetching messages:", err);
     }
+}
+
 
     messageForm.addEventListener('submit', async (e) => {
         e.preventDefault();

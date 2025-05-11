@@ -103,6 +103,13 @@
 </div>
 
 <script>
+
+    function isValidInput(text) {
+    // Only allow alphanumeric usernames to add frontend input sanitization.
+
+    return /^[a-zA-Z0-9_]+$/.test(text);
+    }
+
     function printStatus(message, color = "#0066cc") {
         const statusDiv = document.getElementById("status");
         statusDiv.innerText = message;
@@ -120,6 +127,11 @@
         event.preventDefault();
         const username = document.getElementById("username").value;
         const password = document.getElementById("password").value;
+
+        if (!isValidInput(username)) {
+            printStatus("Username can only contain letters, numbers, and underscores.", "red");
+            return;
+        }
 
         try {
             const response = await fetch("/chat/register/", {
@@ -141,51 +153,58 @@
     });
 
     document.getElementById("login-form").addEventListener("submit", async (event) => {
-        event.preventDefault();
+    event.preventDefault();
 
-        const username = document.getElementById("login-username").value;
-        const password = document.getElementById("login-password").value;
+    const username = document.getElementById("login-username").value;
+    const password = document.getElementById("login-password").value;
 
-        // helper to call your login endpoint
-        async function attemptLogin(otp_code) {
-            const payload = { username, password };
-            if (otp_code !== undefined) payload.otp_code = otp_code;
-            const res = await fetch("/chat/login/", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(payload),
-                credentials: "include"   // if you've hooked up session login
-            });
-            const json = await res.json();
-            return { res, json };
+    // —— Client-side validation ——
+    if (!isValidInput(username)) {
+        printStatus("Username can only contain letters, numbers, and underscores.", "red");
+        return;
+    }
+
+    // —— Helper to call your login endpoint, optionally with an OTP code ——
+    async function attemptLogin(otp_code) {
+        const payload = { username, password };
+        if (otp_code !== undefined) payload.otp_code = otp_code;
+
+        const res = await fetch("/chat/login/", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+            credentials: "include"
+        });
+        const json = await res.json();
+        return { res, json };
+    }
+
+    try {
+        // 1) First attempt without OTP
+        let { res, json } = await attemptLogin();
+
+        // 2) If the server demands 2FA, prompt and retry
+        if (!res.ok && json.detail && json.detail.toLowerCase().includes("2fa")) {
+            const otp = prompt("Enter your 2FA code from Google Authenticator:");
+            if (otp) {
+                ({ res, json } = await attemptLogin(otp));
+            }
         }
 
-        try {
-            // 1) First attempt without OTP
-            let { res, json } = await attemptLogin();
-
-            // 2) If the server demands 2FA, prompt and retry
-            if (!res.ok && json.detail && json.detail.toLowerCase().includes("2fa")) {
-                const otp = prompt("Enter your 2FA code from Google Authenticator:");
-                if (otp) {
-                    ({ res, json } = await attemptLogin(otp));
-                }
-            }
-
-            // 3) Final outcome
-            if (res.ok) {
-                localStorage.setItem("token", json.token);
-                printStatus("Login successful!", "green");
-                resetInputs();
-                window.location.href = "/chat/usermenu/";
-            } else {
-                printStatus("Login failed: " + (json.detail || "Unknown error."), "red");
-            }
-
-        } catch (err) {
-            printStatus("An error occurred during login.", "red");
+        // 3) Final outcome
+        if (res.ok) {
+            localStorage.setItem("token", json.token);
+            printStatus("Login successful!", "green");
+            resetInputs();
+            window.location.href = "/chat/usermenu/";
+        } else {
+            printStatus("Login failed: " + (json.detail || "Unknown error."), "red");
         }
-    });
+    } catch (err) {
+        console.error("Login flow error:", err);
+        printStatus("An error occurred during login.", "red");
+    }
+});
 </script>
 </body>
 </html>
