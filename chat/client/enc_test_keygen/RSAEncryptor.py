@@ -1,9 +1,9 @@
 import base64
-from Crypto.Cipher import PKCS1_OAEP, AES
-from Crypto.PublicKey import RSA
-from Crypto.Random import get_random_bytes
-from Crypto.Signature import pss
-from Crypto.Hash import SHA256
+from Cryptodome.Cipher import PKCS1_OAEP, AES
+from Cryptodome.PublicKey import RSA
+from Cryptodome.Random import get_random_bytes
+from Cryptodome.Signature import pss
+from Cryptodome.Hash import SHA256
 
 
 def generate_aes_key():
