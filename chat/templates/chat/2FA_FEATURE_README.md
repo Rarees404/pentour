@@ -19,8 +19,8 @@ pip install pyotp qrcode pillow
 1. **Add fields to your User model** (`chat/models.py`):
 
    ```python
-   totp_secret = models.CharField(max_length=32, blank=True, null=True)
-   is_2fa_enabled = models.BooleanField(default=False)
+totp_secret = models.CharField(max_length=32, blank=True, null=True)
+is_2fa_enabled = models.BooleanField(default=False)
    ```
 
 2. **Add the 2FA setup view** in `chat/views.py` and route it:

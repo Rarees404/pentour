@@ -88,8 +88,8 @@ For assets shared across the entire project:
 2. **Ensure Settings Are Correct:**  
    In **pc/settings.py**, the static file settings should include:
    ```python
-   STATIC_URL = '/static/'
-   STATIC_ROOT = BASE_DIR / "staticfiles"
+STATIC_URL = '/static/'
+STATIC_ROOT = BASE_DIR / "staticfiles"
    ```
    - `STATIC_URL` is the URL path used to access static files.
    - `STATIC_ROOT` is where the `collectstatic` command will gather all static files for production.

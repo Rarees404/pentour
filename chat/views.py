@@ -205,7 +205,6 @@ class LoginView(APIView):
         return Response({"token": token.key})
 
 
-
 class UserMenuView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -460,26 +459,23 @@ class GetMessagesView(APIView):
             "messages": out
         })
 
+
 @login_required
 def setup_2fa(request):
     user = request.user
 
-    # 1) On first visit, generate & store a new secret
     if not user.totp_secret:
         user.totp_secret = pyotp.random_base32()
         user.save()
 
-    # 2) Build the URI for Google Authenticator
     totp = pyotp.TOTP(user.totp_secret)
     otp_uri = totp.provisioning_uri(name=user.username, issuer_name='Secure Chat')
 
-    # 3) Render a QR code image as base64
     qr_img = qrcode.make(otp_uri)
     buffer = io.BytesIO()
     qr_img.save(buffer, format='PNG')
     qr_data = base64.b64encode(buffer.getvalue()).decode()
 
-    # 4) If the form was submitted, verify the user’s code
     if request.method == 'POST':
         code = request.POST.get('otp_code')
         if totp.verify(code):

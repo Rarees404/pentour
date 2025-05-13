@@ -31,17 +31,39 @@ ALLOWED_HOSTS = ["my_database", "178.238.108.26", "localhost", "127.0.0.1","10.1
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
+
+    'formatters': {
+        'colored': {
+            '()': 'colorlog.ColoredFormatter',
+            # you can tweak this format string as you like
+            'format': '%(log_color)s[%(levelname).1s] %(message)s',
+            'log_colors': {
+                'DEBUG':    'cyan',
+                'INFO':     'green',
+                'WARNING':  'yellow',
+                'ERROR':    'red',
+                'CRITICAL': 'red,bg_white',
+            },
+        },
+        'plain': {
+            'format': '[%(levelname).1s] %(message)s'
+        },
+    },
+
     'handlers': {
         'file': {
             'level': 'DEBUG',
             'class': 'logging.FileHandler',
             'filename': os.path.join(BASE_DIR, 'chat_debug.log'),
+            'formatter': 'plain',
         },
         'console': {
             'level': 'DEBUG',
             'class': 'logging.StreamHandler',
+            'formatter': 'colored',
         },
     },
+
     'root': {
         'handlers': ['file', 'console'],
         'level': 'DEBUG',
