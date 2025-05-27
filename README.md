@@ -28,6 +28,8 @@ Install all Python dependencies with:
 ```bash
 pip install -r requirements.txt
 pip install colorlog
+pip install django-postgrespool2
+
 
 ```
 

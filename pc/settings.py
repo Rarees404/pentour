@@ -23,10 +23,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-ky^56xg5&kg2&8ualp++lplthx@*x7s%g)7eyhq*&(@bohhcle'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False 
+DEBUG = False
 
 
-ALLOWED_HOSTS = ["my_database", "178.238.108.26", "localhost", "127.0.0.1","10.10.9.108", "188.91.214.104"]
+ALLOWED_HOSTS = ['project2-2-telepathy.work']
+
+
 
 LOGGING = {
     'version': 1,
@@ -119,19 +121,21 @@ TEMPLATES = [
 ASGI_APPLICATIOn='pc.asgi.application'
 
 
-# Database
-# https://docs.djangoproject.com/en/5.1/ref/settings/#databases
-# Change this based on your database credentials to host it locally!
 DATABASES = {
     'default': {
         'ENGINE':   'django.db.backends.postgresql',
-        'NAME':     'my_database',       # your database name
-        'USER':     'myproject_user',    # the Postgres role you made
-        'PASSWORD': 'mysecretpassword',  # that role’s password
+        'NAME':     'my_database',
+        'USER':     'myproject_user',
+        'PASSWORD': 'mysecretpassword',
         'HOST':     'localhost',
         'PORT':     '5432',
+        'CONN_MAX_AGE': 60,  # Keeps connections open for 60 seconds, helps prevent floods
+        'OPTIONS': {
+            'connect_timeout': 10
+        }
     }
 }
+
 
 
 
@@ -175,10 +179,6 @@ USE_TZ = True
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / "staticfiles"  # For collectstatic in production
 
-# Add the global static directory
-STATICFILES_DIRS = [
-    BASE_DIR / "static",
-]
 
 
 # Default primary key field type
