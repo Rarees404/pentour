@@ -133,34 +133,40 @@
         });
     }
 
-    document.getElementById("register-form").addEventListener("submit", async (event) => {
-        event.preventDefault();
-        const username = document.getElementById("username").value;
-        const password = document.getElementById("password").value;
+document.getElementById("register-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const username = document.getElementById("username").value;
+    const password = document.getElementById("password").value;
 
-        if (!isValidInput(username)) {
-            printStatus("Username can only contain letters, numbers, and underscores.", "red");
-            return;
+    if (!isValidInput(username)) {
+        printStatus("Username can only contain letters, numbers, and underscores.", "red");
+        return;
+    }
+
+    if (password.length < 8) {
+        printStatus("Password must be at least 8 characters long.", "red");
+        return;
+    }
+
+    try {
+        const response = await fetch("/chat/register/", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username, password }),
+        });
+
+        const result = await response.json();
+        if (response.ok) {
+            printStatus("Registration successful!", "green");
+            resetInputs();
+        } else {
+            printStatus(result.message || "Registration failed.", "red");
         }
+    } catch (error) {
+        printStatus("An error occurred during registration.", "red");
+    }
+});
 
-        try {
-            const response = await fetch("/chat/register/", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ username, password }),
-            });
-
-            const result = await response.json();
-            if (response.ok) {
-                printStatus("Registration successful!", "green");
-                resetInputs();
-            } else {
-                printStatus(result.message || "Registration failed.", "red");
-            }
-        } catch (error) {
-            printStatus("An error occurred during registration.", "red");
-        }
-    });
 
     document.getElementById("login-form").addEventListener("submit", async (event) => {
         event.preventDefault();

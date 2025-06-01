@@ -1,12 +1,11 @@
 import os
 import time
-import re
 import django
 from django.conf import settings
 from django.contrib.auth.hashers import check_password
 from tqdm import tqdm
 
-# Setup
+#Setupp
 settings.configure(
     INSTALLED_APPS=[
         "django.contrib.auth",
@@ -22,29 +21,21 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 hash_file = os.path.join(BASE_DIR, "user_password_hashes.txt")
 rockyou_file = os.path.join(BASE_DIR, "top100.txt")
 
-# Load pre-hashed user passwords (format: plaintext:hash)
+#Load pre-hashed user passwords (format: plaintext:hash)
 with open(hash_file, "r", encoding="utf-8") as f:
     hashed_passwords = [line.strip().split(":", 1) for line in f if ":" in line]
 
-# Define password policy
-def is_valid_password(pw):
-    return (
-        len(pw) >= 8 and
-        '_' in pw and
-        all(c.isalnum() or c == '_' for c in pw)
-    )
-
-# Load attack wordlist with filtering
+#Load attack wordlist
 with open(rockyou_file, "r", encoding="latin-1") as f:
-    rockyou_passwords = [
-        line.strip() for line in f if line.strip() and is_valid_password(line.strip())
-    ]
+    rockyou_passwords = [line.strip() for line in f if line.strip()]
 
-# Start timing
+#Start timing
 start_time = time.time()
+
+#Dictionary attack with progress bar ( To make waiting bearable )
 matched = []
 
-print(f" Starting dictionary attack on {len(hashed_passwords)} passwords using {len(rockyou_passwords)} filtered guesses...\n")
+print(f" Starting dictionary attack on {len(hashed_passwords)} passwords using {len(rockyou_passwords)} guesses...\n")
 
 for user_password, hashed in tqdm(hashed_passwords, desc="Cracking", unit="password"):
     for guess in rockyou_passwords:
@@ -55,13 +46,13 @@ for user_password, hashed in tqdm(hashed_passwords, desc="Cracking", unit="passw
     else:
         print(f" Not cracked: '{user_password}'")
 
-# End timing
+#End timing
 end_time = time.time()
 duration = end_time - start_time
 minutes = int(duration // 60)
 seconds = int(duration % 60)
 
-# Final report
+#Final report
 total = len(hashed_passwords)
 cracked = len(matched)
 success_rate = (cracked / total) * 100
