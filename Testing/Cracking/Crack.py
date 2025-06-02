@@ -26,19 +26,10 @@ rockyou_file = os.path.join(BASE_DIR, "top100.txt")
 with open(hash_file, "r", encoding="utf-8") as f:
     hashed_passwords = [line.strip().split(":", 1) for line in f if ":" in line]
 
-# Define password policy
-def is_valid_password(pw):
-    return (
-        len(pw) >= 8 and
-        '_' in pw and
-        all(c.isalnum() or c == '_' for c in pw)
-    )
 
 # Load attack wordlist with filtering
 with open(rockyou_file, "r", encoding="latin-1") as f:
-    rockyou_passwords = [
-        line.strip() for line in f if line.strip() and is_valid_password(line.strip())
-    ]
+    rockyou_passwords = [line.strip() for line in f if line.strip()]
 
 # Start timing
 start_time = time.time()

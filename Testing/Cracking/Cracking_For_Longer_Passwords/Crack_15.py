@@ -18,8 +18,8 @@ django.setup()
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # Paths
-hash_file = os.path.join(BASE_DIR, "user_password_hashes.txt")
-rockyou_file = os.path.join(BASE_DIR, "top100.txt")
+hash_file = os.path.join(BASE_DIR, "15length_passwords_hashes.txt")
+rockyou_file = os.path.join(BASE_DIR, "15LENGTHPASSWORD.txt")
 
 #Load pre-hashed user passwords (format: plaintext:hash)
 with open(hash_file, "r", encoding="utf-8") as f:
@@ -27,7 +27,7 @@ with open(hash_file, "r", encoding="utf-8") as f:
 
 #Load attack wordlist
 with open(rockyou_file, "r", encoding="latin-1") as f:
-    rockyou_passwords = [line.strip() for line in f if line.strip()]
+    rockyou_passwords = [line.strip() for line in f if len(line.strip()) > 15]
 
 #Start timing
 start_time = time.time()
