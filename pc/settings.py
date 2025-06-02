@@ -26,7 +26,11 @@ SECRET_KEY = 'django-insecure-ky^56xg5&kg2&8ualp++lplthx@*x7s%g)7eyhq*&(@bohhcle
 DEBUG = False
 
 
-ALLOWED_HOSTS = ['project2-2-telepathy.work']
+ALLOWED_HOSTS = [
+    'localhost',
+    '127.0.0.1',
+    'project2-2-telepathy.work',
+]
 
 
 
@@ -118,7 +122,7 @@ TEMPLATES = [
 # WSGI_APPLICATION = 'pc.wsgi.application'
 
 
-ASGI_APPLICATIOn='pc.asgi.application'
+ASGI_APPLICATION = 'pc.asgi.application'
 
 
 DATABASES = {

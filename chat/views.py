@@ -30,6 +30,8 @@ logger = logging.getLogger(__name__)
 from collections import defaultdict
 import time
 import re
+import random
+
 
 
 # Track failed login attempts per IP: {ip: (last_attempt_time, wait_time)}
@@ -71,6 +73,7 @@ User = get_user_model()
 
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives import serialization
+
 
 
 class RegisterUserView(CreateAPIView):
@@ -225,9 +228,16 @@ class CreateChatView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
-        chat_id = str(uuid.uuid4())  # generate unique ID
-        active_chats[chat_id] = [request.user]  # store creator
-        return Response({"chat_id": chat_id}, status=status.HTTP_201_CREATED)
+        # Generate a 4‐digit PIN that isn’t already in active_chats
+        while True:
+            pin = "{:04d}".format(random.randint(0, 9999))
+            if pin not in active_chats:
+                break
+
+        # Store the single‐user list under this PIN
+        active_chats[pin] = [request.user]
+        return Response({"chat_id": pin}, status=status.HTTP_201_CREATED)
+
 
 
 class JoinChatView(APIView):
@@ -389,20 +399,40 @@ class GetMessagesView(APIView):
     def get(self, request, chat_id):
         logger.info("[GET] Retrieving messages for chat '%s' and user '%s'", chat_id, request.user.username)
 
+        # 1) Make sure the chat_id is valid
         if chat_id not in active_chats:
             logger.warning("[GET] Chat '%s' not found", chat_id)
             return Response({"error": "Chat not found"}, status=status.HTTP_404_NOT_FOUND)
 
-        user1, user2 = active_chats[chat_id]
+        users = active_chats[chat_id]  # could be a list of length 1 or 2
+        # 2) If there's only one participant so far, return 204 (No Content).
+        if len(users) < 2:
+            # Deny if the caller isn't even that one participant
+            if request.user not in users:
+                logger.warning(
+                    "[GET] User '%s' not participant in chat '%s'",
+                    request.user.username, chat_id
+                )
+                return Response({"error": "Not a participant"}, status=status.HTTP_403_FORBIDDEN)
+            # If they are the creator, but no one else has joined yet:
+            return Response(status=status.HTTP_204_NO_CONTENT)
+
+        # 3) Now that len(users) == 2, unpack safely
+        user1, user2 = users
         if request.user not in (user1, user2):
-            logger.warning("[GET] User '%s' not participant in chat '%s'", request.user.username, chat_id)
+            logger.warning(
+                "[GET] User '%s' not participant in chat '%s'",
+                request.user.username, chat_id
+            )
             return Response({"error": "Not a participant"}, status=status.HTTP_403_FORBIDDEN)
 
+        # 4) Filter messages between the two participants exactly as before:
         msgs = Message.objects.filter(
             Q(sender=user1, receiver=user2) | Q(sender=user2, receiver=user1)
         ).order_by("timestamp")
 
-        # Load private key
+        # 5) Load the private key and decrypt each message, etc.
+        #    (This is identical to what you already had below.)
         priv_path = f"chat/client/enc_test_keygen/static/keys/{request.user.username}_private_key.pem"
         with open(priv_path, "r") as f:
             private_pem = f.read()
@@ -418,7 +448,7 @@ class GetMessagesView(APIView):
                     aes_key = decrypt_aes_key_with_rsa(private_pem, m.encrypted_symmetric_key)
                     logger.debug("[GET] AES key decrypted for Message(id=%d)", m.id)
 
-                    # AES-decrypt message
+                    # AES-decrypt ciphertext
                     logger.debug("[GET] AES-decrypting ciphertext for Message(id=%d)", m.id)
                     plaintext = decrypt_with_aes(aes_key, {
                         "ciphertext": m.encrypted_text,
@@ -432,22 +462,27 @@ class GetMessagesView(APIView):
                     if verify_signature(m.sender.public_key, plaintext, m.signature):
                         logger.debug("[GET] Signature valid for Message(id=%d)", m.id)
                     else:
-                        logger.warning("[GET] Signature INVALID for Message(id=%d) — possible tampering", m.id)
+                        logger.warning(
+                            "[GET] Signature INVALID for Message(id=%d) — possible tampering", m.id
+                        )
                         plaintext = "[Tampered] " + plaintext
 
                 except Exception as e:
-                    logger.error("[GET] Decryption/Verification failed for Message(id=%d): %s", m.id, e)
+                    logger.error(
+                        "[GET] Decryption/Verification failed for Message(id=%d): %s", m.id, e
+                    )
                     plaintext = "[Decryption failed]"
 
             else:
+                # If I was the sender, show “[Sent]” or cached plaintext
                 plaintext = sent_messages_cache.get(m.id, "[Sent]")
 
             out.append({
-                "id": m.id,
-                "sender_id": m.sender.id,
+                "id":             m.id,
+                "sender_id":      m.sender.id,
                 "sender_username": m.sender.username,
-                "text": plaintext,
-                "timestamp": m.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+                "text":           plaintext,
+                "timestamp":      m.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
                 "is_current_user": (m.sender == request.user)
             })
 
@@ -458,6 +493,7 @@ class GetMessagesView(APIView):
             "partner": partner,
             "messages": out
         })
+
 
 
 @login_required

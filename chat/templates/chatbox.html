@@ -1,11 +1,14 @@
 <!DOCTYPE html>
 <html lang="en" class="dark">
 <head>
-    <meta charset="UTF-8">
+    <meta charset="UTF-8" />
     <title>Secure Chat • Live</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- (same fonts & FontAwesome as before) -->
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" crossorigin="anonymous" />
+
     <style>
         :root {
             --bg-primary: #0a0a1f;
@@ -18,7 +21,7 @@
             --glow-small: 0 0 6px var(--accent-cyan);
             --transition: 0.2s ease;
         }
-        * { margin:0; padding:0; box-sizing:border-box; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             background: var(--bg-primary);
             font-family: 'Orbitron', sans-serif;
@@ -28,6 +31,36 @@
             height: 100vh;
             overflow: hidden;
         }
+
+        /* ——— Waiting Overlay ——— */
+        #waitingOverlay {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        }
+        #waitingOverlay .box {
+            background: #121229;
+            padding: 2rem 3rem;
+            border-radius: 8px;
+            text-align: center;
+            box-shadow: var(--glow-small);
+        }
+        #waitingOverlay .box p {
+            color: var(--text-main);
+            font-size: 1.2rem;
+            margin-bottom: 0.5rem;
+        }
+        #waitingOverlay .box small {
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+
+        /* ——— Header / Title Bar ——— */
         header#chat-header {
             background: var(--bg-secondary);
             padding: 1rem 1.5rem;
@@ -42,265 +75,321 @@
             font-size: 1.4rem;
             color: var(--accent-cyan);
             text-shadow: var(--glow-small);
-            display:flex;
-            align-items:center;
+            display: flex;
+            align-items: center;
         }
-        .chat-title i { margin-right:0.5rem; }
+        .chat-title i { margin-right: 0.5rem; }
         .account-btn {
-            background:transparent;
-            border:1px solid var(--accent-cyan);
-            border-radius:6px;
-            padding:0.5rem 0.75rem;
-            color:var(--accent-cyan);
-            font-size:0.9rem;
-            display:inline-flex;
-            align-items:center;
-            text-decoration:none;
-            transition:var(--transition);
+            background: transparent;
+            border: 1px solid var(--accent-cyan);
+            border-radius: 6px;
+            padding: 0.5rem 0.75rem;
+            color: var(--accent-cyan);
+            font-size: 0.9rem;
+            display: inline-flex;
+            align-items: center;
+            text-decoration: none;
+            transition: var(--transition);
         }
-        .account-btn i { margin-right:0.4rem; }
-        .account-btn:hover { background:rgba(0,229,255,0.1); }
+        .account-btn i { margin-right: 0.4rem; }
+        .account-btn:hover { background: rgba(0,229,255,0.1); }
 
-        /* Messages */
+        /* ——— Main Chat Container (hidden until second user joins) ——— */
+        #chatContainer {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            height: calc(100vh - 68px); /* account for header's height+border */
+        }
+        /* Messages list */
         #messages {
-            flex:1;
-            padding:1.5rem;
-            overflow-y:auto;
-            display:flex;
-            flex-direction:column;
-            gap:1rem;
+            flex: 1;
+            padding: 1.5rem;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
         }
         .message {
-            max-width:75%;
-            padding:0.75rem 1rem;
-            border-radius:12px;
-            font-size:0.95rem;
-            box-shadow:0 1px 3px rgba(0,0,0,0.2);
-            display:flex;
-            row-gap: 0.7rem;
-            flex-direction:column;
+            max-width: 75%;
+            padding: 0.75rem 1rem;
+            border-radius: 12px;
+            font-size: 0.95rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+            display: flex;
+            flex-direction: column;
+            row-gap: 0.5rem;
         }
         .message.current-user {
-            align-self:flex-end;
-            background:var(--accent-cyan);
-            color:#000;
-            border-bottom-right-radius:4px;
+            align-self: flex-end;
+            background: var(--accent-cyan);
+            color: #000;
+            border-bottom-right-radius: 4px;
         }
         .message.other-user {
-            align-self:flex-start;
-            background:var(--bg-secondary);
-            color:var(--text-main);
-            border-bottom-left-radius:4px;
-        }
-        .message-header {
-            display:flex;
-            justify-content:space-between;
-            align-items:center;
-            margin-bottom:0.75rem; /* increased spacing */
-            gap:5.5rem; /* horizontal gap between name and timestamp */
+            align-self: flex-start;
+            background: var(--bg-secondary);
+            color: var(--text-main);
+            border-bottom-left-radius: 4px;
         }
         .message-username {
-            font-weight:bold;
-            font-size:0.85rem;
-            color:var(--text-secondary);
+            font-weight: bold;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
         }
-        .message-timestamp {
-            font-size:0.7rem;
-            color:var(--timestamp-text);
+        .message-time {
+            font-size: 0.7rem;
+            color: var(--timestamp-text);
+            text-align: right;
         }
 
         /* Input Area */
         #message-form {
-            display:flex;
-            padding:1rem;
-            background:var(--bg-secondary);
-            border-top:2px solid var(--accent-cyan);
+            display: flex;
+            padding: 1rem;
+            background: var(--bg-secondary);
+            border-top: 2px solid var(--accent-cyan);
         }
         #message-input {
-            flex:1;
-            padding:0.75rem 1rem;
-            border:1px solid var(--accent-cyan);
-            border-radius:50px;
-            background:var(--bg-primary);
-            color:var(--text-main);
-            font-size:1rem;
-            box-shadow:inset 0 0 5px rgba(0,0,0,0.5);
-            transition:var(--transition);
+            flex: 1;
+            padding: 0.75rem 1rem;
+            border: 1px solid var(--accent-cyan);
+            border-radius: 50px;
+            background: var(--bg-primary);
+            color: var(--text-main);
+            font-size: 1rem;
+            box-shadow: inset 0 0 5px rgba(0,0,0,0.5);
+            transition: var(--transition);
         }
-        #message-input:focus { outline:none; border-color:var(--accent-magenta); }
+        #message-input:focus { outline: none; border-color: var(--accent-magenta); }
         #message-form button {
-            margin-left:0.75rem;
-            background:var(--accent-magenta);
-            border-radius:50px;
-            padding:0 1.2rem;
-            cursor:pointer;
-            display:flex;
-            align-items:center;
-            font-weight:bold;
-            text-transform:uppercase;
-            box-shadow:var(--glow-small);
-            transition:var(--transition);
-            color:#000;
-            border:none;
+            margin-left: 0.75rem;
+            background: var(--accent-magenta);
+            border-radius: 50px;
+            padding: 0 1.2rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            font-weight: bold;
+            text-transform: uppercase;
+            box-shadow: var(--glow-small);
+            transition: var(--transition);
+            color: #000;
+            border: none;
         }
-        #message-form button:hover { transform:scale(1.05); }
+        #message-form button:hover { transform: scale(1.05); }
 
         /* Leave Chat */
         #leave-chat {
-            width:100%;
-            padding:0.9rem;
-            background:#ff0044;
-            border:none;
-            color:#fff;
-            text-transform:uppercase;
-            letter-spacing:0.5px;
-            transition:var(--transition);
+            width: 100%;
+            padding: 0.9rem;
+            background: #ff0044;
+            border: none;
+            color: #fff;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            transition: var(--transition);
         }
-        #leave-chat:hover { background:#e6003d; }
+        #leave-chat:hover { background: #e6003d; }
     </style>
 </head>
 
 <body>
+<div id="waitingOverlay">
+    <div class="box">
+        <p>Waiting for the other user to join…</p>
+        <small>(This window will close once they arrive.)</small>
+    </div>
+</div>
+
+<!-- ——— Header Bar ——— -->
 <header id="chat-header">
-    <div class="chat-title"><i class="fas fa-comments"></i> Chat with- <span id="partner-name">...</span></div>
-    <a href="/chat/usermenu/" class="account-btn"><i class="fas fa-user-circle"></i> Account</a>
+    <div class="chat-title">
+        <i class="fas fa-comments"></i>
+        Chat with- <span id="partner-name">…</span>
+    </div>
+    <a href="/chat/usermenu/" class="account-btn">
+        <i class="fas fa-user-circle"></i> Account
+    </a>
 </header>
 
-<div id="messages"></div>
+<!-- ——— Main Chat Container (initially hidden) ——— -->
+<div id="chatContainer" style="display: none;">
+    <!-- Message list -->
+    <div id="messages"></div>
 
-<form id="message-form">
-    <input type="text" id="message-input" placeholder="Type your message..." required />
-    <button type="submit">Send <i class="fas fa-paper-plane"></i></button>
-</form>
+    <!-- Message input form -->
+    <form id="message-form">
+        <input type="text" id="message-input" placeholder="Type your message..." required />
+        <button type="submit">Send <i class="fas fa-paper-plane"></i></button>
+    </form>
 
-<button id="leave-chat"><i class="fas fa-sign-out-alt"></i> Leave Chat</button>
+    <!-- Leave button -->
+    <button id="leave-chat"><i class="fas fa-sign-out-alt"></i> Leave Chat</button>
+</div>
 
 <script>
-    const messagesDiv = document.getElementById('messages');
-    const partnerNameSpan = document.getElementById('partner-name');
-    const messageForm = document.getElementById('message-form');
-    const messageInput = document.getElementById('message-input');
-    const leaveChatBtn = document.getElementById('leave-chat');
+    (function() {
+        const messagesDiv     = document.getElementById('messages');
+        const partnerNameSpan = document.getElementById('partner-name');
+        const messageForm     = document.getElementById('message-form');
+        const messageInput    = document.getElementById('message-input');
+        const leaveChatBtn    = document.getElementById('leave-chat');
+        const waitingOverlay  = document.getElementById('waitingOverlay');
+        const chatContainer   = document.getElementById('chatContainer');
 
-    const chatId = localStorage.getItem('chat_id');
-    const token = localStorage.getItem('token');
-    const storedPartner = localStorage.getItem('partner');
+        const chatId      = localStorage.getItem('chat_id');
+        const token       = localStorage.getItem('token');
+        const storedPartner = localStorage.getItem('partner');
+        partnerNameSpan.textContent = storedPartner || 'Unknown';
 
-    partnerNameSpan.textContent = storedPartner || 'Unknown';
 
-    async function fetchMessages() {
-    try {
-        const response = await fetch(`/chat/get-messages/${chatId}/`, {
-            headers: { 'Authorization': 'Token ' + token }
+        waitingOverlay.style.display = 'flex';
+        chatContainer.style.display  = 'none';
+
+
+        let pollInterval = setInterval(checkChatReady, 2000);
+
+        async function checkChatReady() {
+            try {
+                const resp = await fetch(`/chat/get-messages/${chatId}/`, {
+                    headers: { 'Authorization': 'Token ' + token }
+                });
+
+                if (resp.status === 204) {
+                    return;
+                }
+
+                if (resp.status === 404) {
+                    alert("Chat not found or your partner left before joining.");
+                    localStorage.clear();
+                    clearInterval(pollInterval);
+                    window.location.href = "/";
+                    return;
+                }
+
+                if (resp.status === 403) {
+                    alert("You’re not authorized for this chat.");
+                    clearInterval(pollInterval);
+                    window.location.href = "/";
+                    return;
+                }
+
+                if (resp.status === 200) {
+                    const data = await resp.json();
+
+                    waitingOverlay.style.display = 'none';
+                    chatContainer.style.display  = 'flex';
+
+                    if (data.partner) {
+                        partnerNameSpan.textContent = data.partner;
+                        localStorage.setItem('partner', data.partner);
+                    }
+
+                    messagesDiv.innerHTML = '';
+                    data.messages.forEach(renderMessage);
+                    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+
+                    clearInterval(pollInterval);
+                    pollInterval = setInterval(fetchNewMessages, 2000);
+                }
+            } catch (err) {
+                console.error("Error polling chat readiness:", err);
+            }
+        }
+
+        async function fetchNewMessages() {
+            try {
+                const resp = await fetch(`/chat/get-messages/${chatId}/`, {
+                    headers: { 'Authorization': 'Token ' + token }
+                });
+                if (!resp.ok) {
+                    console.warn("fetchNewMessages got status", resp.status);
+                    return;
+                }
+                const data = await resp.json();
+                if (data.partner) {
+                    partnerNameSpan.textContent = data.partner;
+                    localStorage.setItem('partner', data.partner);
+                }
+                messagesDiv.innerHTML = '';
+                data.messages.forEach(renderMessage);
+                messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            } catch (err) {
+                console.error("Error fetching new messages:", err);
+            }
+        }
+
+        function renderMessage(msg) {
+            const isCurrentUser = msg.is_current_user;
+
+            const messageEl = document.createElement('div');
+            messageEl.className = 'message ' + (isCurrentUser ? 'current-user' : 'other-user');
+
+            const usernameEl = document.createElement('div');
+            usernameEl.className = 'message-username';
+            usernameEl.textContent = isCurrentUser ? 'You' : msg.sender_username;
+
+            const textEl = document.createElement('div');
+            textEl.textContent = msg.text;
+
+            const timeEl = document.createElement('div');
+            timeEl.className = 'message-time';
+            // Display local time; the server returned "YYYY-MM-DD HH:MM:SS"
+            timeEl.textContent = new Date(msg.timestamp).toLocaleTimeString();
+
+            messageEl.appendChild(usernameEl);
+            messageEl.appendChild(textEl);
+            messageEl.appendChild(timeEl);
+            messagesDiv.appendChild(messageEl);
+        }
+
+        messageForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const text = messageInput.value.trim();
+            if (!text) return;
+
+            try {
+                const resp = await fetch('/chat/send-message/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Token ' + token
+                    },
+                    body: JSON.stringify({ chat_id: chatId, message: text })
+                });
+                if (resp.ok) {
+                    messageInput.value = '';
+                    fetchNewMessages();
+                }
+            } catch (err) {
+                console.error("Send error:", err);
+            }
         });
 
-        if (response.status === 404) {
-            alert("Your chat partner has left.");
-            localStorage.clear();
-            clearInterval(pollInterval);
-            window.location.href = "/";
-            return;
-        }
-
-        if (response.ok) {
-            const data = await response.json();
-            messagesDiv.innerHTML = '';
-
-            // Update partner name if present
-            if (data.partner) {
-                partnerNameSpan.textContent = data.partner;
-                localStorage.setItem('partner', data.partner);
-            }
-
-            // Render each message safely
-            data.messages.forEach(msg => {
-                const isCurrentUser = msg.sender_username === data.current_user;
-
-                // Container for this message
-                const messageEl = document.createElement('div');
-                messageEl.className = `message ${isCurrentUser ? 'current-user' : 'other-user'}`;
-
-                // Username element
-                const usernameEl = document.createElement('div');
-                usernameEl.className = 'message-username';
-                usernameEl.appendChild(
-                    document.createTextNode(isCurrentUser ? 'You' : msg.sender_username)
-                );
-
-                // Message text element
-                const textEl = document.createElement('div');
-                textEl.appendChild(document.createTextNode(msg.text));
-
-                // Timestamp element
-                const timeEl = document.createElement('div');
-                timeEl.className = 'message-time';
-                timeEl.appendChild(document.createTextNode(msg.timestamp));
-
-                // Assemble and append
-                messageEl.appendChild(usernameEl);
-                messageEl.appendChild(textEl);
-                messageEl.appendChild(timeEl);
-                messagesDiv.appendChild(messageEl);
-            });
-
-            // Scroll to the bottom so the newest messages are visible
-            messagesDiv.scrollTop = messagesDiv.scrollHeight;
-        }
-    } catch (err) {
-        console.error("Error fetching messages:", err);
-    }
-}
-
-
-    messageForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const text = messageInput.value.trim();
-        if (!text) return;
-
-        try {
-            const response = await fetch('/chat/send-message/', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': 'Token ' + token
-                },
-                body: JSON.stringify({ chat_id: chatId, message: text })
-            });
-
-            if (response.ok) {
-                messageInput.value = '';
-                fetchMessages();
-            }
-        } catch (err) {
-            console.error('Send error:', err);
-        }
-    });
-
-    leaveChatBtn.addEventListener('click', async () => {
-        if (!confirm('Leave this chat?')) return;
-
-        try {
-            const response = await fetch('/chat/leave-chat/', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': 'Token ' + token
+        leaveChatBtn.addEventListener('click', async () => {
+            if (!confirm('Leave this chat?')) return;
+            try {
+                const resp = await fetch('/chat/leave-chat/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Token ' + token
+                    }
+                });
+                if (resp.ok || resp.status === 400) {
+                    localStorage.removeItem('chat_id');
+                    localStorage.removeItem('partner');
+                    clearInterval(pollInterval);
+                    window.location.href = '/';
                 }
-            });
-
-            if (response.ok || response.status === 400) {
-                localStorage.removeItem('chat_id');
-                localStorage.removeItem('partner');
-                clearInterval(pollInterval);
-                window.location.href = '/';
+            } catch (err) {
+                console.error("Leave error:", err);
             }
-        } catch (err) {
-            console.error("Leave error:", err);
-        }
-    });
+        });
 
-    const pollInterval = setInterval(fetchMessages, 2000);
-    fetchMessages();
+        checkChatReady();
+    })();
 </script>
 </body>
 </html>

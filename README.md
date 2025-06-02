@@ -29,6 +29,10 @@ Install all Python dependencies with:
 pip install -r requirements.txt
 pip install colorlog
 pip install django-postgrespool2
+pip install pillow
+pip install channels==4.2.0
+pip install channels_redis
+
 
 
 ```
