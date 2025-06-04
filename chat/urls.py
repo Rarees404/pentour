@@ -14,7 +14,7 @@ from .views import (
     user_menu,
     CreateChatView,
     JoinChatView,
-    setup_2fa, chatbox,
+    setup_2fa, chatbox, GetPublicKeyView,
 )
 
 urlpatterns = [
@@ -27,12 +27,13 @@ urlpatterns = [
 
     # 3) 2FA setup route (keep this exactly as before)
     path("2fa/setup/", setup_2fa, name="setup_2fa"),
+    path("get-public-key/<int:user_id>/", GetPublicKeyView.as_view(), name="get-public-key"),
 
     # 4) Chat‐related API endpoints
     path("check-chat/",     CheckChatView.as_view(),    name="check-chat"),
     path("leave-chat/",     LeaveChatView.as_view(),    name="leave-chat"),
     path("send-message/",   SendMessageView.as_view(),  name="send_message"),
-    path("get-messages/<str:chat_id>/", GetMessagesView.as_view(), name="get_messages"),
+    path("get-messages/<str:chat_id>/", GetMessagesView.as_view(), name="get-messages"),
     path("create-chat/",    CreateChatView.as_view(),   name="create-chat"),
     path("join-chat/",      JoinChatView.as_view(),     name="join-chat"),
 

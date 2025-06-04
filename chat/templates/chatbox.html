@@ -492,31 +492,36 @@
                 const data = await resp.json();
 
                 if (data.both_joined) {
+                    // 1) Hide the overlay and show chat right away
+                    waitingOverlay.style.display = "none";
+                    chatContainer.style.display = "flex";
+
+                    // 2) Then attempt to load encryption keys (errors won’t block UI)
                     try {
                         await loadPublicKeyOfOtherUser();
                         await retrieveOwnPrivateKey();
-
-                        waitingOverlay.style.display = "none";
-                        chatContainer.style.display = "flex";
                     } catch (err) {
-                        console.error("Key error:", err);
-                        showError("Failed to load encryption keys");
-                        return;
+                        console.warn("Key error (UI already shown):", err);
+                        showError("Failed to load encryption keys (messages may be unencrypted).");
                     }
 
+                    // 3) Update partner’s name if needed
                     if (data.partner && data.partner !== partnerUsername) {
                         partnerUsername = data.partner;
                         partnerNameSpan.textContent = partnerUsername;
                         localStorage.setItem("partner", partnerUsername);
                     }
 
+                    // 4) Render any existing messages
                     await renderMessages(data.messages, data.current_user);
 
+                    // 5) Switch to polling only for new messages from now on
                     clearInterval(pollInterval);
                     pollInterval = setInterval(fetchNewMessages, 2000);
                 }
             }
         }
+
 
         async function fetchNewMessages() {
             try {

@@ -6,6 +6,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 import pyotp
+from rest_framework import permissions, status
 from django.db.models import Q
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
@@ -401,6 +402,19 @@ from chat.client.enc_test_keygen.RSAEncryptor import (
 )
 
 
+class GetPublicKeyView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+    def get(self, request, user_id):
+        try:
+            user = User.objects.get(id=user_id)
+            if not user.public_key:
+                return Response({"message":"No public key stored."}, status=404)
+            return Response(user.public_key, status=200)
+        except User.DoesNotExist:
+            return Response({"message":"User not found."}, status=404)
+
+
+
 # Updated SendMessageView in views.py
 class SendMessageView(APIView):
     authentication_classes = [TokenAuthentication]
@@ -475,47 +489,46 @@ class SendMessageView(APIView):
 from chat.client.enc_test_keygen.RSAEncryptor import (
     decrypt_with_aes, decrypt_aes_key_with_rsa
 )
-
+from django.shortcuts import get_object_or_404
 
 # Updated GetMessagesView in views.py
 class GetMessagesView(APIView):
     authentication_classes = [TokenAuthentication]
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes     = [permissions.IsAuthenticated]
 
     def get(self, request, chat_id):
-        logger.info(f"[GET] Retrieving encrypted messages for chat '{chat_id}' and user '{request.user.username}'")
+        """
+        GET /chat/get-messages/<chat_id>/
+        Returns the encrypted messages between the two participants of this chat.
+        """
+        # 1) Load (or 404) the Chat by its 4-digit PIN
+        chat = get_object_or_404(Chat, pin=chat_id)
 
-        try:
-            chat = Chat.objects.get(pin=chat_id)
-        except Chat.DoesNotExist:
-            logger.warning(f"[GET] Chat with PIN '{chat_id}' not found")
-            return Response({"message": "Chat not found."}, status=404)
+        # 2) Verify the requesting user is one of the two participants
+        me = request.user
+        if me != chat.user1 and me != chat.user2:
+            return Response({"detail": "Forbidden"}, status=status.HTTP_403_FORBIDDEN)
 
-        users = active_chats.get(chat_id, [])
+        # 3) Determine who the “partner” is
+        partner = chat.user2 if (me == chat.user1) else chat.user1
 
-        if request.user not in users:
-            logger.warning(f"[GET] User '{request.user.username}' not a participant in chat '{chat_id}'")
-            return Response(status=status.HTTP_403_FORBIDDEN)
+        # 4) Fetch every Message whose (sender, receiver) pair matches (me ↔ partner)
+        messages_qs = Message.objects.filter(
+            (Q(sender=me) & Q(receiver=partner)) |
+            (Q(sender=partner) & Q(receiver=me))
+        ).order_by("timestamp")
 
-        # Determine the other participant
-        partner = None
-        if chat.user1 and chat.user1 != request.user:
-            partner = chat.user1
-        elif chat.user2 and chat.user2 != request.user:
-            partner = chat.user2
+        # 5) Serialize those messages
+        serializer_data = MessageSerializer(messages_qs, many=True).data
 
-        messages = Message.objects.filter(chat=chat).order_by("timestamp")
-        serialized = MessageSerializer(messages, many=True)
-
-        logger.info(f"[GET] Retrieved {len(messages)} encrypted messages for chat '{chat_id}'")
-
+        # 6) Return JSON (including partner’s username/id and “both_joined” flag)
         return Response({
-            "messages": serialized.data,
-            "partner": partner.username if partner else None,
-            "current_user": request.user.username,
-            "both_joined": bool(chat.user1 and chat.user2)
-        }, status=200)
-
+            "messages":     serializer_data,
+            "partner":      partner.username if partner else None,
+            "partner_id":   partner.id       if partner else None,
+            "current_user": me.username,
+            "both_joined":  bool(chat.user1 and chat.user2),
+        }, status=status.HTTP_200_OK)
 
 
 
