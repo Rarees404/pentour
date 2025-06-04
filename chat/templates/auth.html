@@ -1,11 +1,22 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="en" class="dark">
 <head>
-    <meta charset="UTF-8">
+    <meta charset="UTF-8" />
     <title>Secure Chat • Authenticate</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-pQ2X+..." crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Google Fonts & FontAwesome -->
+    <link
+            href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap"
+            rel="stylesheet"
+    />
+    <link
+            rel="stylesheet"
+            href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+            integrity="sha512-pQ2X+..."
+            crossorigin="anonymous"
+            referrerpolicy="no-referrer"
+    />
     <style>
         :root {
             --bg-primary: #0d0d1a;
@@ -17,105 +28,551 @@
             --glow: 0 0 10px var(--accent-cyan);
             --glow-strong: 0 0 20px var(--accent-cyan);
         }
-        * { margin:0; padding:0; box-sizing:border-box; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
         body {
             background: var(--bg-primary);
             color: var(--text-main);
             font-family: 'Orbitron', sans-serif;
-            display:flex; flex-direction:column; align-items:center;
-            justify-content:center; min-height:100vh; padding:20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 20px;
             background: linear-gradient(135deg, #0d0d1a, #1a1a2e);
         }
-        h1 { font-size:2.5rem; color: var(--accent-cyan); text-shadow: var(--glow-strong); margin-bottom:1rem; }
+        h1 {
+            font-size: 2.5rem;
+            color: var(--accent-cyan);
+            text-shadow: var(--glow-strong);
+            margin-bottom: 1rem;
+        }
         .container {
             background: var(--bg-secondary);
-            padding:2rem; border-radius:12px;
+            padding: 2rem;
+            border-radius: 12px;
             box-shadow: var(--glow);
-            width:100%; max-width:380px;
-            margin:1rem 0;
+            width: 100%;
+            max-width: 380px;
+            margin: 1rem 0;
             border: 2px solid var(--accent-cyan);
         }
         .container h2 {
-            font-size:1.5rem; margin-bottom:1rem;
-            display:flex; align-items:center; justify-content:center;
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             color: var(--accent-magenta);
             text-shadow: 0 0 8px var(--accent-magenta);
         }
-        .container h2 i { margin-right:0.5em; }
-        form { display:flex; flex-direction:column; }
+        .container h2 i {
+            margin-right: 0.5em;
+        }
+        form {
+            display: flex;
+            flex-direction: column;
+        }
         input {
             background: #0d0d1a;
-            border:1px solid var(--accent-cyan);
-            border-radius:6px;
-            padding:0.75rem 1rem;
-            margin-bottom:0.75rem;
+            border: 1px solid var(--accent-cyan);
+            border-radius: 6px;
+            padding: 0.75rem 1rem;
+            margin-bottom: 0.75rem;
             color: var(--text-main);
-            font-family:'Orbitron';
+            font-family: 'Orbitron';
             box-shadow: inset 0 0 5px #000;
         }
-        input:focus { outline:none; border-color: var(--accent-magenta); box-shadow: 0 0 8px var(--accent-magenta); }
+        input:focus {
+            outline: none;
+            border-color: var(--accent-magenta);
+            box-shadow: 0 0 8px var(--accent-magenta);
+        }
         .btn {
             background: var(--accent-cyan);
-            border:none; border-radius:6px;
-            padding:0.75rem;
-            font-size:1rem;
-            cursor:pointer;
+            border: none;
+            border-radius: 6px;
+            padding: 0.75rem;
+            font-size: 1rem;
+            cursor: pointer;
             color: #000;
-            font-weight:bold;
-            text-transform:uppercase;
+            font-weight: bold;
+            text-transform: uppercase;
             box-shadow: var(--glow);
-            display:flex; align-items:center; justify-content:center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             transition: transform 0.2s ease;
         }
-        .btn i { margin-right:0.5em; }
-        .btn:hover { transform: scale(1.05); box-shadow: var(--glow-strong); }
-        #status, #login-error { text-align:center; margin-top:0.5rem; font-size:0.9rem; }
-        #login-error { color: #ff3366; }
-        /* Responsive */
+        .btn i {
+            margin-right: 0.5em;
+        }
+        .btn:hover {
+            transform: scale(1.05);
+            box-shadow: var(--glow-strong);
+        }
+        .btn:disabled {
+            background: #666;
+            cursor: not-allowed;
+            transform: none;
+        }
+        #status,
+        #login-error {
+            text-align: center;
+            margin-top: 0.5rem;
+            font-size: 0.9rem;
+        }
+        #login-error {
+            color: #ff3366;
+        }
+        .key-generation {
+            background: rgba(0, 229, 255, 0.1);
+            border: 1px solid var(--accent-cyan);
+            border-radius: 6px;
+            padding: 1rem;
+            margin: 0.5rem 0;
+            text-align: center;
+            font-size: 0.85rem;
+        }
+        .loading {
+            display: none;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+        .loading.show {
+            display: flex;
+        }
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--accent-cyan);
+            border-top: 2px solid transparent;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+            100% {
+                transform: rotate(360deg);
+            }
+        }
         @media (max-width: 450px) {
-            h1 { font-size:2rem; }
-            .container { padding:1.5rem; }
+            h1 {
+                font-size: 2rem;
+            }
+            .container {
+                padding: 1.5rem;
+            }
         }
     </style>
 </head>
 <body>
 <h1>Secure Chat</h1>
 
+<!-- ─────────────────────────────────────────────────────────────────────────── -->
 <div class="container">
     <h2><i class="fas fa-user-plus"></i>Register</h2>
-    <form id="register-form">
-        <input type="text" id="username" placeholder="Username" required />
-        <input type="password" id="password" placeholder="Password" required />
-        <button class="btn" type="submit"><i class="fas fa-rocket"></i> Register</button>
+    <div class="key-generation">
+        <i class="fas fa-key"></i> Your encryption keys will be generated securely on your device
+    </div>
+    <form id="register-form" method="post">
+        {% csrf_token %}
+        <input type="text" id="username" name="username" placeholder="Username" required />
+        <input type="password" id="password" name="password" placeholder="Password" required />
+        <button class="btn" type="submit" id="register-btn">
+            <i class="fas fa-rocket"></i> Register
+        </button>
+        <div class="loading" id="register-loading">
+            <div class="spinner"></div>
+            <span>Generating encryption keys...</span>
+        </div>
     </form>
 </div>
 
 <div class="container">
     <h2><i class="fas fa-sign-in-alt"></i>Login</h2>
-    <form id="login-form">
-        <input type="text" id="login-username" placeholder="Username" required />
-        <input type="password" id="login-password" placeholder="Password" required />
-        <input type="text" id="otp-code" placeholder="2FA Code" style="display:none;" />
+    <form id="login-form" method="post">
+        {% csrf_token %}
+        <input type="text" id="login-username" name="username" placeholder="Username" required />
+        <input type="password" id="login-password" name="password" placeholder="Password" required />
         <button class="btn" type="submit"><i class="fas fa-shield-alt"></i> Login</button>
     </form>
     <p id="login-error"></p>
     <div id="status"></div>
 </div>
 
+<!-- ─────────────────────────────────────────────────────────────────────────── -->
+<!-- Client-side cryptography library -->
 <script>
 
-    function isValidInput(text) {
-    // Only allow alphanumeric usernames to add frontend input sanitization.
 
-    return /^[a-zA-Z0-9_]+$/.test(text);
+    class ClientCrypto {
+        constructor() {
+            this.keyPair = null;
+            this.privateKeyPem = null;
+            this.publicKeyPem = null;
+        }
+
+        // Generate RSA key pair on client
+        async generateKeyPair() {
+            try {
+                this.keyPair = await window.crypto.subtle.generateKey(
+                    {
+                        name: "RSA-OAEP",
+                        modulusLength: 4096,
+                        publicExponent: new Uint8Array([1, 0, 1]),
+                        hash: "SHA-256",
+                    },
+                    true, // extractable
+                    ["encrypt", "decrypt"]
+                );
+
+                // Export keys to PEM format
+                const publicKeyBuffer = await window.crypto.subtle.exportKey(
+                    "spki",
+                    this.keyPair.publicKey
+                );
+                const privateKeyBuffer = await window.crypto.subtle.exportKey(
+                    "pkcs8",
+                    this.keyPair.privateKey
+                );
+
+                this.publicKeyPem = this.arrayBufferToPem(
+                    publicKeyBuffer,
+                    "PUBLIC KEY"
+                );
+                this.privateKeyPem = this.arrayBufferToPem(
+                    privateKeyBuffer,
+                    "PRIVATE KEY"
+                );
+
+                // Store private key in browser's secure storage (IndexedDB)
+                await this.storePrivateKey(this.privateKeyPem);
+
+                return {
+                    publicKey: this.publicKeyPem,
+                    privateKey: this.privateKeyPem,
+                };
+            } catch (error) {
+                console.error("Key generation failed:", error);
+                throw error;
+            }
+        }
+
+        // Convert ArrayBuffer to PEM format
+        arrayBufferToPem(buffer, label) {
+            const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)));
+            const formatted = base64.match(/.{1,64}/g).join("\n");
+            return `-----BEGIN ${label}-----\n${formatted}\n-----END ${label}-----`;
+        }
+
+        // Convert PEM to ArrayBuffer
+        pemToArrayBuffer(pem) {
+            const base64 = pem
+                .replace(/-----BEGIN.*-----/, "")
+                .replace(/-----END.*-----/, "")
+                .replace(/\s/g, "");
+            const binary = atob(base64);
+            const bytes = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i++) {
+                bytes[i] = binary.charCodeAt(i);
+            }
+            return bytes.buffer;
+        }
+
+        // Store private key securely in IndexedDB
+        async storePrivateKey(privateKeyPem) {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open("SecureChatKeys", 1);
+
+                request.onerror = () => reject(request.error);
+
+                request.onupgradeneeded = (event) => {
+                    const db = event.target.result;
+                    if (!db.objectStoreNames.contains("keys")) {
+                        db.createObjectStore("keys");
+                    }
+                };
+
+                request.onsuccess = (event) => {
+                    const db = event.target.result;
+                    const transaction = db.transaction(["keys"], "readwrite");
+                    const store = transaction.objectStore("keys");
+                    const username = localStorage.getItem("current_username");
+
+                    store.put(privateKeyPem, `${username}_private_key`);
+
+                    transaction.oncomplete = () => resolve();
+                    transaction.onerror = () => reject(transaction.error);
+                };
+            });
+        }
+
+        // Retrieve private key from IndexedDB
+        async getPrivateKey(username) {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open("SecureChatKeys", 1);
+
+                request.onerror = () => reject(request.error);
+
+                request.onsuccess = (event) => {
+                    const db = event.target.result;
+                    const transaction = db.transaction(["keys"], "readonly");
+                    const store = transaction.objectStore("keys");
+                    const keyRequest = store.get(`${username}_private_key`);
+
+                    keyRequest.onsuccess = () => {
+                        if (keyRequest.result) {
+                            resolve(keyRequest.result);
+                        } else {
+                            reject(new Error("Private key not found"));
+                        }
+                    };
+
+                    keyRequest.onerror = () => reject(keyRequest.error);
+                };
+            });
+        }
+
+        // Generate AES key for message encryption
+        async generateAESKey() {
+            return await window.crypto.subtle.generateKey(
+                {
+                    name: "AES-GCM",
+                    length: 256,
+                },
+                true,
+                ["encrypt", "decrypt"]
+            );
+        }
+
+        // Encrypt message with AES
+        async encryptWithAES(message, aesKey) {
+            const encoder = new TextEncoder();
+            const data = encoder.encode(message);
+            const iv = window.crypto.getRandomValues(new Uint8Array(12)); // 96-bit IV for GCM
+
+            const encrypted = await window.crypto.subtle.encrypt(
+                {
+                    name: "AES-GCM",
+                    iv: iv,
+                },
+                aesKey,
+                data
+            );
+
+            return {
+                ciphertext: new Uint8Array(encrypted),
+                iv: iv,
+            };
+        }
+
+        // Decrypt message with AES
+        async decryptWithAES(encryptedData, aesKey) {
+            const decrypted = await window.crypto.subtle.decrypt(
+                {
+                    name: "AES-GCM",
+                    iv: encryptedData.iv,
+                },
+                aesKey,
+                encryptedData.ciphertext
+            );
+
+            const decoder = new TextDecoder();
+            return decoder.decode(decrypted);
+        }
+
+        // Encrypt AES key with RSA public key
+        async encryptAESKeyWithRSA(aesKey, publicKeyPem) {
+            const publicKeyBuffer = this.pemToArrayBuffer(publicKeyPem);
+            const publicKey = await window.crypto.subtle.importKey(
+                "spki",
+                publicKeyBuffer,
+                {
+                    name: "RSA-OAEP",
+                    hash: "SHA-256",
+                },
+                false,
+                ["encrypt"]
+            );
+
+            const aesKeyBuffer = await window.crypto.subtle.exportKey(
+                "raw",
+                aesKey
+            );
+            const encrypted = await window.crypto.subtle.encrypt(
+                {
+                    name: "RSA-OAEP",
+                },
+                publicKey,
+                aesKeyBuffer
+            );
+
+            return btoa(String.fromCharCode(...new Uint8Array(encrypted)));
+        }
+
+        // Decrypt AES key with RSA private key
+        async decryptAESKeyWithRSA(encryptedAESKey, privateKeyPem) {
+            const privateKeyBuffer = this.pemToArrayBuffer(privateKeyPem);
+            const privateKey = await window.crypto.subtle.importKey(
+                "pkcs8",
+                privateKeyBuffer,
+                {
+                    name: "RSA-OAEP",
+                    hash: "SHA-256",
+                },
+                false,
+                ["decrypt"]
+            );
+
+            const encryptedBuffer = new Uint8Array(
+                atob(encryptedAESKey)
+                    .split("")
+                    .map((c) => c.charCodeAt(0))
+            );
+
+            const decryptedAESKey = await window.crypto.subtle.decrypt(
+                {
+                    name: "RSA-OAEP",
+                },
+                privateKey,
+                encryptedBuffer
+            );
+
+            return await window.crypto.subtle.importKey(
+                "raw",
+                decryptedAESKey,
+                {
+                    name: "AES-GCM",
+                    length: 256,
+                },
+                false,
+                ["decrypt"]
+            );
+        }
+
+        // Sign message with private key
+        async signMessage(message, privateKeyPem) {
+            const privateKeyBuffer = this.pemToArrayBuffer(privateKeyPem);
+            const privateKey = await window.crypto.subtle.importKey(
+                "pkcs8",
+                privateKeyBuffer,
+                {
+                    name: "RSA-PSS",
+                    hash: "SHA-256",
+                },
+                false,
+                ["sign"]
+            );
+
+            const encoder = new TextEncoder();
+            const data = encoder.encode(message);
+
+            const signature = await window.crypto.subtle.sign(
+                {
+                    name: "RSA-PSS",
+                    saltLength: 32,
+                },
+                privateKey,
+                data
+            );
+
+            return btoa(String.fromCharCode(...new Uint8Array(signature)));
+        }
+
+        // Verify message signature
+        async verifySignature(message, signature, publicKeyPem) {
+            try {
+                const publicKeyBuffer = this.pemToArrayBuffer(publicKeyPem);
+                const publicKey = await window.crypto.subtle.importKey(
+                    "spki",
+                    publicKeyBuffer,
+                    {
+                        name: "RSA-PSS",
+                        hash: "SHA-256",
+                    },
+                    false,
+                    ["verify"]
+                );
+
+                const encoder = new TextEncoder();
+                const data = encoder.encode(message);
+                const signatureBuffer = new Uint8Array(
+                    atob(signature)
+                        .split("")
+                        .map((c) => c.charCodeAt(0))
+                );
+
+                return await window.crypto.subtle.verify(
+                    {
+                        name: "RSA-PSS",
+                        saltLength: 32,
+                    },
+                    publicKey,
+                    signatureBuffer,
+                    data
+                );
+            } catch (error) {
+                console.error("Signature verification failed:", error);
+                return false;
+            }
+        }
+
+        // Utility: Convert Uint8Array to base64
+        uint8ArrayToBase64(uint8Array) {
+            return btoa(String.fromCharCode(...uint8Array));
+        }
+
+        // Utility: Convert base64 to Uint8Array
+        base64ToUint8Array(base64) {
+            return new Uint8Array(
+                atob(base64)
+                    .split("")
+                    .map((c) => c.charCodeAt(0))
+            );
+        }
     }
 
-    function printStatus(message, color = "#0066cc") {
+    // Global instance
+    window.clientCrypto = new ClientCrypto();
+</script>
+
+<!-- Main registration/login script -->
+<script>
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== "") {
+            const cookies = document.cookie.split(";");
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === name + "=") {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+    // Input validation: only letters, numbers, underscore
+    function isValidInput(text) {
+        return /^[a-zA-Z0-9_]+$/.test(text);
+    }
+
+    // Display status messages
+    function printStatus(message, color = "#00e5ff") {
         const statusDiv = document.getElementById("status");
         statusDiv.innerText = message;
         statusDiv.style.color = color;
     }
 
+    // Clear all input fields
     function resetInputs() {
         document.querySelectorAll("input").forEach((input) => {
             input.value = "";
@@ -123,88 +580,175 @@
         });
     }
 
-    document.getElementById("register-form").addEventListener("submit", async (event) => {
-        event.preventDefault();
-        const username = document.getElementById("username").value;
-        const password = document.getElementById("password").value;
+    // ──────────────────────────────────────────────────────────────────────────
+    // 1) Registration Handler
+    document
+        .getElementById("register-form")
+        .addEventListener("submit", async (event) => {
+            event.preventDefault();
 
-        if (!isValidInput(username)) {
-            printStatus("Username can only contain letters, numbers, and underscores.", "red");
-            return;
-        }
+            const username = document.getElementById("username").value.trim();
+            const password = document.getElementById("password").value;
+            const registerBtn = document.getElementById("register-btn");
+            const loadingDiv = document.getElementById("register-loading");
 
-        try {
-            const response = await fetch("/chat/register/", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ username, password }),
-            });
+            // Read the CSRF token from the hidden input
+            const csrftoken = getCookie("csrftoken");
 
-            const result = await response.json();
-            if (response.ok) {
-                printStatus("Registration successful!", "green");
-                resetInputs();
-            } else {
-                printStatus(result.message || "Registration failed.", "red");
+
+            if (!isValidInput(username)) {
+                printStatus(
+                    "Username can only contain letters, numbers, and underscores.",
+                    "red"
+                );
+                return;
             }
-        } catch (error) {
-            printStatus("An error occurred during registration.", "red");
-        }
-    });
+            if (!password) {
+                printStatus("Password cannot be empty.", "red");
+                return;
+            }
 
-    document.getElementById("login-form").addEventListener("submit", async (event) => {
-    event.preventDefault();
+            // Disable button and show loading spinner
+            registerBtn.disabled = true;
+            loadingDiv.classList.add("show");
 
-    const username = document.getElementById("login-username").value;
-    const password = document.getElementById("login-password").value;
+            try {
+                // 1) Generate RSA key pair on client
+                printStatus("Generating encryption keys...", "orange");
+                const keyPair = await window.clientCrypto.generateKeyPair();
 
-    // —— Client-side validation ——
-    if (!isValidInput(username)) {
-        printStatus("Username can only contain letters, numbers, and underscores.", "red");
-        return;
-    }
+                // Store username for later key retrieval
+                localStorage.setItem("current_username", username);
 
-    // —— Helper to call your login endpoint, optionally with an OTP code ——
-    async function attemptLogin(otp_code) {
-        const payload = { username, password };
-        if (otp_code !== undefined) payload.otp_code = otp_code;
+                printStatus("Keys generated! Registering user...", "orange");
 
-        const res = await fetch("/chat/login/", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
-            credentials: "include"
+                // 2) Send registration request with public key and CSRF header
+                const response = await fetch("/chat/register/", {
+                    method: "POST",
+                    credentials: "include", // send any cookies (csrftoken) along
+                    headers: {
+                        "Content-Type": "application/json",
+                        "X-CSRFToken": csrftoken,
+                    },
+                    body: JSON.stringify({
+                        username,
+                        password,
+                        public_key: keyPair.publicKey,
+                    }),
+                });
+
+                const result = await response.json();
+                if (response.ok) {
+                    printStatus(
+                        "Registration successful! Your keys are stored on your device.",
+                        "green"
+                    );
+                    resetInputs();
+                } else {
+                    printStatus(result.message || "Registration failed.", "red");
+                    // If registration failed, remove stored keys
+                    localStorage.removeItem("current_username");
+                    indexedDB.deleteDatabase("SecureChatKeys");
+                }
+            } catch (error) {
+                console.error("Registration error:", error);
+                printStatus("An error occurred during registration.", "red");
+                localStorage.removeItem("current_username");
+            } finally {
+                // Re-enable button and hide loading spinner
+                registerBtn.disabled = false;
+                loadingDiv.classList.remove("show");
+            }
         });
-        const json = await res.json();
-        return { res, json };
-    }
 
-    try {
-        // 1) First attempt without OTP
-        let { res, json } = await attemptLogin();
 
-        // 2) If the server demands 2FA, prompt and retry
-        if (!res.ok && json.detail && json.detail.toLowerCase().includes("2fa")) {
-            const otp = prompt("Enter your 2FA code from Google Authenticator:");
-            if (otp) {
-                ({ res, json } = await attemptLogin(otp));
+    // 2) Login Handler
+    document
+        .getElementById("login-form")
+        .addEventListener("submit", async (event) => {
+            event.preventDefault();
+
+            const username = document
+                .getElementById("login-username")
+                .value.trim();
+            const password = document.getElementById("login-password").value;
+
+            // Read CSRF token from the hidden input
+            const csrftoken = getCookie("csrftoken");
+
+
+            if (!isValidInput(username)) {
+                printStatus(
+                    "Username can only contain letters, numbers, and underscores.",
+                    "red"
+                );
+                return;
             }
-        }
+            if (!password) {
+                printStatus("Password cannot be empty.", "red");
+                return;
+            }
 
-        // 3) Final outcome
-        if (res.ok) {
-            localStorage.setItem("token", json.token);
-            printStatus("Login successful!", "green");
-            resetInputs();
-            window.location.href = "/chat/usermenu/";
-        } else {
-            printStatus("Login failed: " + (json.detail || "Unknown error."), "red");
-        }
-    } catch (err) {
-        console.error("Login flow error:", err);
-        printStatus("An error occurred during login.", "red");
-    }
-});
+            // Helper: attempt login with optional 2FA code
+            async function attemptLogin(otp_code) {
+                const payload = { username, password };
+                if (otp_code !== undefined) payload.otp_code = otp_code;
+
+                const res = await fetch("/chat/login/", {
+                    method: "POST",
+                    credentials: "include", // must include to set sessionid cookie
+                    headers: {
+                        "Content-Type": "application/json",
+                        "X-CSRFToken": csrftoken,
+                    },
+                    body: JSON.stringify(payload),
+                });
+                const json = await res.json();
+                return { res, json };
+            }
+
+            try {
+                // 1) First attempt (no OTP)
+                let { res, json } = await attemptLogin();
+
+                // 2) If 2FA required, prompt user for code
+                if (
+                    !res.ok &&
+                    json.detail &&
+                    json.detail.toLowerCase().includes("2fa")
+                ) {
+                    const otp = prompt(
+                        "Enter your 2FA code from your authenticator app:"
+                    );
+                    if (!otp) {
+                        printStatus("2FA code is required.", "red");
+                        return;
+                    }
+                    ({ res, json } = await attemptLogin(otp));
+                }
+
+                // 3) On successful login:
+                if (res.ok) {
+                    localStorage.setItem("token", json.token);
+                    localStorage.setItem("current_username", username);
+                    printStatus("Login successful!", "green");
+                    resetInputs();
+
+                    // 4) Redirect to user menu — sessionid now set
+                    setTimeout(() => {
+                        window.location.href = "/chat/usermenu/";
+                    }, 500);
+                } else {
+                    printStatus(
+                        "Login failed: " + (json.message || json.detail || "Unknown."),
+                        "red"
+                    );
+                }
+            } catch (err) {
+                console.error("Login error:", err);
+                printStatus("An error occurred during login.", "red");
+            }
+        });
 </script>
 </body>
 </html>

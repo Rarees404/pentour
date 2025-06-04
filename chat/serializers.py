@@ -1,26 +1,35 @@
+# chat/serializers.py
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
+from .models import Message
 
 User = get_user_model()
-
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        # Include public_key so it can be accepted on signup.
-        fields = ["id", "username", "password", "public_key"]
-        extra_kwargs = {
-            "password": {"write_only": True},
-            "public_key": {"required": False}  # public_key is optional during registration
-        }
+        fields = [
+            "id",
+            "username",
+            "email",
+            "public_key",
+            "is_2fa_enabled",
+            "totp_secret",
+        ]
+        read_only_fields = ["is_2fa_enabled", "totp_secret", "id"]
 
-    def create(self, validated_data):
-        # Remove public_key from validated_data so we can set it manually if provided.
-        public_key = validated_data.pop("public_key", None)
-        user = User(username=validated_data["username"])
-        user.set_password(validated_data["password"])  # Hash the password
-        if public_key:
-            user.public_key = public_key
-        user.save()
-        return user
-
+class MessageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Message
+        fields = [
+            "id",
+            "sender",
+            "receiver",
+            "encrypted_text",
+            "encrypted_symmetric_key",
+            "aes_nonce",
+            "aes_tag",
+            "signature",
+            "timestamp",
+        ]
+        read_only_fields = ["id", "timestamp", "sender"]

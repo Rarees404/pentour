@@ -1,6 +1,6 @@
 # Telepathy
 
-🔗 [https://pengincontour.xyz](https://pengincontour.xyz)
+
 
 Pentour is an anonymous, real-time chat platform with end-to-end RSA encryption.  
 Messages are **always stored encrypted** in the database and **decrypted using the user's private key** before being displayed.
@@ -32,7 +32,7 @@ pip install django-postgrespool2
 pip install pillow
 pip install channels==4.2.0
 pip install channels_redis
-
+pip install psycopg2-binary
 
 
 ```

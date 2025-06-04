@@ -4,9 +4,20 @@
     <meta charset="UTF-8" />
     <title>Telepathy • User Menu</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" crossorigin="anonymous" />
+
+    <!-- Google Font + FontAwesome -->
+    <link
+            href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap"
+            rel="stylesheet"
+    />
+    <link
+            rel="stylesheet"
+            href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+            crossorigin="anonymous"
+    />
+
     <style>
+        /* ---------- Base Colors & Animations ---------- */
         :root {
             --bg-primary: #0a0a1f;
             --bg-secondary: #121229;
@@ -16,7 +27,11 @@
             --text-alt: #8888aa;
             --transition: 0.3s ease;
         }
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
         body {
             background: linear-gradient(135deg, #0a0a1f, #121229);
             background-size: 200% 200%;
@@ -45,6 +60,8 @@
             0%,18%,22%,25%,53%,57%,100% { opacity:1; }
             20%,24%,55% { opacity:0.4; }
         }
+
+        /* ---------- Menu Container ---------- */
         .menu {
             display: flex;
             flex-direction: column;
@@ -62,6 +79,8 @@
             from { transform: translateY(-20px); opacity: 0; }
             to { transform: translateY(0); opacity: 1; }
         }
+
+        /* ---------- Buttons & Inputs ---------- */
         .menu button,
         .menu .input-wrapper {
             width: 100%;
@@ -89,6 +108,12 @@
             box-shadow: 0 0 20px var(--accent-magenta);
             transform: scale(1.02);
         }
+        .menu .logout {
+            background: var(--accent-magenta);
+        }
+        .menu .logout:hover {
+            background: var(--accent-cyan);
+        }
         .input-wrapper input {
             width: 100%;
             padding: 0.8rem;
@@ -108,13 +133,10 @@
         #joinStatus {
             margin-top: 0.5rem;
             font-size: 0.9rem;
+            text-align: center;
         }
-        .logout {
-            background: var(--accent-magenta);
-        }
-        .logout:hover {
-            background: var(--accent-cyan);
-        }
+
+        /* ---------- Modal Styling ---------- */
         .modal {
             display: none;
             position: fixed;
@@ -158,42 +180,101 @@
             margin: 0.3rem;
             width: 48%;
         }
+
         @media (max-width: 480px) {
             h1 { font-size: 2rem; }
         }
     </style>
 </head>
+
 <body>
 <h1><i class="fas fa-user-circle"></i> Welcome to Your Chat Menu</h1>
+
 <div class="menu">
-    <button class="btn" onclick="createChat()"><i class="fas fa-comment-dots"></i> Create Chat</button>
+    <!-- ====== Create Chat (PIN-based) ====== -->
+    <button class="btn" onclick="createChat()">
+        <i class="fas fa-comment-dots"></i> Create Chat
+    </button>
+
+    <!-- ====== Join Chat By PIN ====== -->
     <div class="input-wrapper">
-        <input type="text" id="chatIdInput" placeholder="Enter Chat ID" />
+        <input
+                type="text"
+                id="chatPinInput"
+                placeholder="Enter 4-digit PIN"
+                maxlength="4"
+        />
     </div>
-    <button class="btn" onclick="joinChatById()"><i class="fas fa-sign-in-alt"></i> Join Chat</button>
-    <button class="btn" onclick="window.location.href='{% url "setup_2fa" %}'"><i class="fas fa-shield-alt"></i> Activate 2FA</button>
-    <button class="btn logout" onclick="logout()"><i class="fas fa-power-off"></i> Logout</button>
+    <button class="btn" onclick="joinChatByPin()">
+        <i class="fas fa-sign-in-alt"></i> Join Chat
+    </button>
+
+    <!-- ====== Activate 2FA ====== -->
+    <button class="btn" onclick="window.location.href='{% url 'setup_2fa' %}'">
+        <i class="fas fa-shield-alt"></i> Activate 2FA
+    </button>
+
+    <!-- ====== Logout ====== -->
+    <button class="btn logout" onclick="logout()">
+        <i class="fas fa-power-off"></i> Logout
+    </button>
+
+    <!-- Status Message Placeholder -->
     <p id="joinStatus"></p>
 </div>
 
-<!-- Modal -->
+<!-- ====== Modal to Display New Chat PIN ====== -->
+<!-- ====== Modal to Display New Chat PIN ====== -->
 <div id="chatModal" class="modal">
     <div class="modal-content">
-        <p>Share this Chat ID:</p>
+        <p>Your new 4-digit PIN:</p>
         <input id="chatIdDisplay" readonly />
-        <button class="btn" onclick="copyChatId()"><i class="fas fa-copy"></i> Copy</button>
-        <button class="btn" onclick="enterChat()"><i class="fas fa-paper-plane"></i> Join</button>
-        <button class="btn logout" onclick="closeModal()"><i class="fas fa-times"></i> Close</button>
+        <button class="btn" onclick="copyChatId()">
+            <i class="fas fa-copy"></i> Copy
+        </button>
+        <button class="btn" onclick="joinCreatedChat()">
+            <i class="fas fa-sign-in-alt"></i> Join Chat
+        </button>
+        <button class="btn logout" onclick="closeModal()">
+            <i class="fas fa-times"></i> Close
+        </button>
     </div>
 </div>
 
+
+<!-- ====== JavaScript ====== -->
 <script>
+
+    async function joinCreatedChat() {
+        const chatId = createdChatId;
+        const token = localStorage.getItem("token");
+        const response = await fetch("/chat/join-chat/", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": "Token " + token
+            },
+            body: JSON.stringify({ chat_id: chatId })
+        });
+
+        const result = await response.json();
+        if (response.ok) {
+            localStorage.setItem("chat_id", chatId);
+            closeModal();
+            window.location.href = "/chat/chatbox/";
+        } else {
+            alert(result.message || "Failed to join chat.");
+        }
+    }
+
+    // Redirect to login if no token
     if (!localStorage.getItem("token")) {
         window.location.href = "/";
     }
 
     let createdChatId = null;
 
+    // Generate a new 4-digit PIN (no body needed)
     async function createChat() {
         const token = localStorage.getItem("token");
         const response = await fetch("/chat/create-chat/", {
@@ -202,44 +283,43 @@
                 "Content-Type": "application/json",
                 "Authorization": "Token " + token
             }
+            // No body → backend generates PIN
         });
+
         const result = await response.json();
         if (response.ok) {
-            createdChatId = result.chat_id;
-            localStorage.setItem("chat_id", createdChatId);
+            createdChatId = result.chat_id; // e.g. "0427"
             document.getElementById("chatIdDisplay").value = createdChatId;
-            document.getElementById("chatModal").style.display = "flex";
+            document.getElementById("chatModal").classList.add("show");
         } else {
-            alert("Failed to create chat");
+            alert(result.message || "Failed to create PIN.");
         }
     }
 
+    // Copy the new PIN to clipboard
     function copyChatId() {
         const input = document.getElementById("chatIdDisplay");
         input.select();
         input.setSelectionRange(0, 99999);
         navigator.clipboard.writeText(input.value).then(() => {
-            alert("Chat ID copied to clipboard!");
+            alert("PIN copied to clipboard!");
         });
     }
 
-    function enterChat() {
-        document.getElementById("chatModal").style.display = "none";
-        window.location.href = "/chat/chatbox/";
-    }
-
+    // Close/hide the modal
     function closeModal() {
-        document.getElementById("chatModal").style.display = "none";
+        document.getElementById("chatModal").classList.remove("show");
     }
 
-    async function joinChatById() {
-        const chatId = document.getElementById("chatIdInput").value.trim();
+    // Join a chat using the PIN from the input box
+    async function joinChatByPin() {
+        const chatId = document.getElementById("chatPinInput").value.trim();
         const token = localStorage.getItem("token");
         const status = document.getElementById("joinStatus");
 
-        if (!chatId) {
-            status.textContent = "Please enter a chat ID.";
+        if (!/^\d{4}$/.test(chatId)) {
             status.style.color = "red";
+            status.textContent = "Enter a valid 4-digit PIN.";
             return;
         }
 
@@ -255,30 +335,30 @@
         const result = await response.json();
         if (response.ok) {
             localStorage.setItem("chat_id", chatId);
-            localStorage.setItem("partner", result.partner);
             status.style.color = "green";
-            status.textContent = "Successfully joined chat!";
+            status.textContent = "Joined chat! Redirecting…";
             setTimeout(() => {
                 window.location.href = "/chat/chatbox/";
-            }, 1000);
+            }, 800);
         } else {
             status.style.color = "red";
             status.textContent = result.message || "Failed to join chat.";
         }
     }
 
+    // Logout
     function logout() {
         localStorage.clear();
         window.location.href = "/";
     }
 
-    // Allow modal close when clicking outside
+    // Hide modal when clicking outside
     window.onclick = function(event) {
         const modal = document.getElementById("chatModal");
         if (event.target === modal) {
-            modal.style.display = "none";
+            modal.classList.remove("show");
         }
-    }
+    };
 </script>
 </body>
 </html>
