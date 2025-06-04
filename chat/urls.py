@@ -31,8 +31,8 @@ urlpatterns = [
 
     # 4) Chat‐related API endpoints
     path("check-chat/",     CheckChatView.as_view(),    name="check-chat"),
-    path("leave-chat/",     LeaveChatView.as_view(),    name="leave-chat"),
-    path("send-message/",   SendMessageView.as_view(),  name="send_message"),
+    path("leave-chat/<str:chat_id>/", LeaveChatView.as_view(), name="leave-chat"),
+    path("send-message/<str:chat_id>/", SendMessageView.as_view(),  name="send_message"),
     path("get-messages/<str:chat_id>/", GetMessagesView.as_view(), name="get-messages"),
     path("create-chat/",    CreateChatView.as_view(),   name="create-chat"),
     path("join-chat/",      JoinChatView.as_view(),     name="join-chat"),

@@ -112,7 +112,7 @@
             gap: 1rem;
         }
 
-        /* Message bubbles - Fixed selectors */
+        /* Message bubbles */
         .message {
             max-width: 75%;
             padding: 0.75rem 1rem;
@@ -496,7 +496,12 @@
                     waitingOverlay.style.display = "none";
                     chatContainer.style.display = "flex";
 
-                    // 2) Then attempt to load encryption keys (errors won’t block UI)
+                    // 2) Store partner_id so send‐message can use it
+                    if (data.partner_id) {
+                        localStorage.setItem("partner_id", data.partner_id);
+                    }
+
+                    // 3) Then attempt to load encryption keys (errors won’t block UI)
                     try {
                         await loadPublicKeyOfOtherUser();
                         await retrieveOwnPrivateKey();
@@ -505,23 +510,24 @@
                         showError("Failed to load encryption keys (messages may be unencrypted).");
                     }
 
-                    // 3) Update partner’s name if needed
+                    // 4) Update partner’s name if needed
                     if (data.partner && data.partner !== partnerUsername) {
                         partnerUsername = data.partner;
                         partnerNameSpan.textContent = partnerUsername;
                         localStorage.setItem("partner", partnerUsername);
                     }
 
-                    // 4) Render any existing messages
+                    // 5) Render any existing messages
                     await renderMessages(data.messages, data.current_user);
 
-                    // 5) Switch to polling only for new messages from now on
+                    // 6) Switch to polling only for new messages from now on
                     clearInterval(pollInterval);
                     pollInterval = setInterval(fetchNewMessages, 2000);
                 }
+            } else {
+                console.error("checkChatReady() failed with status:", resp.status);
             }
         }
-
 
         async function fetchNewMessages() {
             try {
@@ -594,10 +600,10 @@
                             new TextEncoder().encode(decryptedText)
                         );
 
-                        signatureStatus = isValidSignature ? " ✓" : " ⚠️";
+                        signatureStatus = isValidSignature ? " ✓" : " ⚠!!!!";
                     } catch (verifyError) {
                         console.error("Signature verification failed:", verifyError);
-                        signatureStatus = " ❓";
+                        signatureStatus = " ??????";
                     }
                 }
 
@@ -614,47 +620,48 @@
             }
         }
 
-        // Message sending
+        // ─── Single “submit” listener below ───
+
         messageForm.addEventListener("submit", async function(e) {
             e.preventDefault();
             const plaintext = messageInput.value.trim();
             if (!plaintext) return;
 
             try {
+                // 1) Load our own private key (stored in localStorage)
                 const privPemLocal = localStorage.getItem("private_key_pem");
                 if (!privPemLocal) {
                     showError("Private key missing");
                     return;
                 }
-
                 const myPrivKey = await importRsaPrivateKey(privPemLocal);
-                const partnerId = localStorage.getItem("partner_id");
 
+                // 2) Get partner_id (must have been saved by checkChatReady)
+                const partnerId = localStorage.getItem("partner_id");
                 if (!partnerId) {
                     showError("Partner ID missing");
                     return;
                 }
 
-                const resp = await fetch("/chat/get-public-key/" + partnerId + "/", {
+                // 3) Fetch partner’s public key from server
+                const respPub = await fetch("/chat/get-public-key/" + partnerId + "/", {
                     headers: { "Authorization": "Token " + token }
                 });
-
-                if (!resp.ok) {
+                if (!respPub.ok) {
                     showError("Failed to get partner's public key");
                     return;
                 }
-
-                const partnerPubPem = await resp.text();
+                const partnerPubPem = await respPub.text();
                 const partnerPubKey = await importRsaPublicKeyForEncrypt(partnerPubPem);
 
-                // Encrypt message
+                // 4) Encrypt the plaintext
                 const encryptedArrayBuffer = await window.crypto.subtle.encrypt(
                     { name: "RSA-OAEP" },
                     partnerPubKey,
                     new TextEncoder().encode(plaintext)
                 );
 
-                // Sign message (create signing key from stored private key)
+                // 5) Sign the plaintext (using RSA-PSS)
                 const signingKeyPair = await window.crypto.subtle.generateKey(
                     {
                         name: "RSA-PSS",
@@ -665,16 +672,17 @@
                     true,
                     ["sign"]
                 );
-
                 const signatureBuffer = await window.crypto.subtle.sign(
                     { name: "RSA-PSS", saltLength: 32 },
                     signingKeyPair.privateKey,
                     new TextEncoder().encode(plaintext)
                 );
 
+                // 6) Base64‐encode both ciphertext and signature
                 const encryptedB64 = arrayBufferToBase64(encryptedArrayBuffer);
-                const sigB64 = arrayBufferToBase64(signatureBuffer);
+                const sigB64       = arrayBufferToBase64(signatureBuffer);
 
+                // 7) POST to /chat/send-message/{chatId}/
                 const sendResp = await fetch("/chat/send-message/" + chatId + "/", {
                     method: "POST",
                     headers: {
@@ -683,7 +691,7 @@
                     },
                     body: JSON.stringify({
                         encrypted_text: encryptedB64,
-                        signature: sigB64
+                        signature:      sigB64
                     })
                 });
 
@@ -692,6 +700,7 @@
                     return;
                 }
 
+                // 8) Clear input on success
                 messageInput.value = "";
             } catch (sendError) {
                 console.error("Send message error:", sendError);
@@ -708,7 +717,7 @@
 
         async function leaveChat() {
             try {
-                await fetch("/chat/leave/" + chatId + "/", {
+                await fetch("/chat/leave-chat/" + chatId + "/", {
                     method: "POST",
                     headers: { "Authorization": "Token " + token }
                 });
@@ -726,7 +735,7 @@
                 clearInterval(pollInterval);
             }
             try {
-                await fetch("/chat/leave/" + chatId + "/", {
+                await fetch("/chat/leave-chat/" + chatId + "/", {
                     method: "POST",
                     headers: { "Authorization": "Token " + token }
                 });

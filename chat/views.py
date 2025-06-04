@@ -1,14 +1,6 @@
 from django.contrib.auth import authenticate, get_user_model
-from django.shortcuts import render
 from django.contrib.auth import authenticate, login as django_login
-from rest_framework.authtoken.models import Token
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework import status
-import pyotp
-from rest_framework import permissions, status
 from django.db.models import Q
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status, permissions
@@ -16,9 +8,6 @@ from rest_framework.authtoken.models import Token
 from rest_framework.generics import CreateAPIView
 from .serializers import UserSerializer, MessageSerializer
 from .models import Message
-from threading import Lock
-import os
-import uuid
 import logging
 import pyotp
 import qrcode
@@ -29,13 +18,10 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 logger = logging.getLogger(__name__)
 from collections import defaultdict
-import time
 import re
 import random
-from rest_framework.authentication import TokenAuthentication
 from django.views.decorators.csrf import ensure_csrf_cookie
 from .models import Chat
-
 
 # Track failed login attempts per IP: {ip: (last_attempt_time, wait_time)}
 failed_login_ips = defaultdict(lambda: {'last_time': 0, 'wait_time': 0, 'fail_count': 0})
@@ -45,7 +31,7 @@ failed_login_ips = defaultdict(lambda: {'last_time': 0, 'wait_time': 0, 'fail_co
 #queue = []        # Stores waiting users for chat sessions
 #active_chats = {} # Maps chat IDs to a tuple of user objects (user1, user2)
 #queue_lock = Lock()
-sent_messages_cache = {}  # {msg.id: plaintext}
+#sent_messages_cache = {}  # {msg.id: plaintext}
 
 
 
@@ -396,10 +382,6 @@ class LeaveChatView(APIView):
         logger.info(f"[LEAVE-CHAT] User '{request.user.username}' left chat '{chat_id}'.")
         return Response({"message": "Left chat."}, status=status.HTTP_200_OK)
 
-# Send Message View - saves a message in the database
-from chat.client.enc_test_keygen.RSAEncryptor import (
-    generate_aes_key, encrypt_with_aes, encrypt_aes_key_with_rsa, sign_message, verify_signature
-)
 
 
 class GetPublicKeyView(APIView):
@@ -418,71 +400,48 @@ class GetPublicKeyView(APIView):
 # Updated SendMessageView in views.py
 class SendMessageView(APIView):
     authentication_classes = [TokenAuthentication]
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes     = [permissions.IsAuthenticated]
 
-    def post(self, request):
+    def post(self, request, chat_id=None):
         """
-        Expects JSON:
-          {
-            "chat_id": "<4-digit-PIN>",
-            "encrypted_text": "<base64-encoded RSA-OAEP ciphertext>",
-            "signature":      "<base64-encoded RSA-PSS signature over the ciphertext>"
-          }
+        POST /chat/send-message/<chat_id>/
+        Expects JSON body: { "encrypted_text": <base64 ciphertext>, "signature": <base64 signature> }
+        Uses chat_id from URL to identify which Chat to send into.
         """
-        try:
-            logger.info("[SEND] Starting send flow for user '%s'", request.user.username)
+        # 1) Load (or 404) the Chat by its 4-digit PIN from the URL
+        chat = get_object_or_404(Chat, pin=chat_id)
 
-            chat_id        = request.data.get("chat_id")
-            encrypted_text = request.data.get("encrypted_text")
-            signature      = request.data.get("signature")
+        # 2) Verify the requesting user is one of the two participants of this chat
+        me = request.user
+        if me != chat.user1 and me != chat.user2:
+            return Response({"detail": "Forbidden"}, status=status.HTTP_403_FORBIDDEN)
 
-            # 1) Validate required fields
-            if not all([chat_id, encrypted_text, signature]):
-                return Response(
-                    {"message": "Missing required encryption fields."},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
+        # 3) Extract encrypted_text and signature from request body
+        encrypted_text = request.data.get("encrypted_text")
+        signature      = request.data.get("signature")
 
-            # 2) Validate chat existence
-            if chat_id not in active_chats:
-                logger.warning("[SEND] Invalid chat_id '%s'", chat_id)
-                return Response({"message": "Invalid chat ID."}, status=status.HTTP_400_BAD_REQUEST)
-
-            users = active_chats[chat_id]
-            if len(users) < 2:
-                return Response({"message": "Chat partner not found."}, status=status.HTTP_400_BAD_REQUEST)
-
-            # 3) Ensure sender is a participant
-            user1, user2 = users
-            if request.user not in (user1, user2):
-                logger.warning(
-                    "[SEND] User '%s' not participant in chat '%s'",
-                    request.user.username,
-                    chat_id,
-                )
-                return Response({"message": "Not a participant."}, status=status.HTTP_403_FORBIDDEN)
-
-            # 4) Determine the receiver
-            receiver = user2 if request.user == user1 else user1
-            logger.info("[SEND] Storing encrypted message for receiver '%s'", receiver.username)
-
-            # 5) Create Message record—AES fields left blank/NULL
-            msg = Message.objects.create(
-                sender=request.user,
-                receiver=receiver,
-                encrypted_text=encrypted_text,
-                encrypted_symmetric_key="",  # no AES key in this flow
-                aes_nonce="",
-                aes_tag="",
-                signature=signature,
+        if not all([encrypted_text, signature]):
+            return Response(
+                {"message": "Missing required encryption fields."},
+                status=status.HTTP_400_BAD_REQUEST
             )
 
-            logger.info("[SEND] Stored Message(id=%s) with RSA-only encryption", msg.id)
-            return Response({"message": "Message sent."}, status=status.HTTP_200_OK)
+        # 4) Determine who the recipient is (the “other” user in the chat)
+        if me == chat.user1:
+            recipient = chat.user2
+        else:
+            recipient = chat.user1
 
-        except Exception as e:
-            logger.error("[SEND] ERROR: %s", str(e), exc_info=True)
-            return Response({"error": "Failed to send message"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        # 5) Create and save the Message
+        msg = Message.objects.create(
+            sender=me,
+            receiver=recipient,
+            encrypted_text=encrypted_text,
+            signature=signature,
+        )
+
+        serializer_data = MessageSerializer(msg).data
+        return Response(serializer_data, status=status.HTTP_201_CREATED)
 
 
 
