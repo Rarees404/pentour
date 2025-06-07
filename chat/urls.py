@@ -1,6 +1,9 @@
 from django.urls import path
+from chat import views
+
+
 from .views import (
-    RegisterUserView, LoginView, CheckChatView, LeaveChatView, auth_page,
+    CustomAuthToken, RegisterUserView, LoginView, CheckChatView, LeaveChatView, auth_page,
     chat_box, SendMessageView, GetMessagesView, user_menu, CreateChatView, JoinChatView,
     setup_2fa  # import the new views
 )
@@ -18,6 +21,10 @@ urlpatterns = [
     path("join-chat/", JoinChatView.as_view(), name="join_chat"),
     path("chatbox/", chat_box, name="chatbox"),
     path("", auth_page, name="auth_page"),
+    path('get-or-create-chat/', views.get_or_create_chat, name='get_or_create_chat'),
+    path('get-messages/<int:chat_id>/', views.get_messages, name='get_messages'),
+    path('send-message/<int:chat_id>/', views.send_message, name='send_message'),
+    path('login/', CustomAuthToken.as_view()),
 
 
 ]

@@ -31,6 +31,13 @@ from collections import defaultdict
 import time
 import re
 import random
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+from .models import ChatSession, Message
+from .serializers import MessageSerializer
+from django.shortcuts import get_object_or_404
+from rest_framework.permissions import AllowAny
 
 
 
@@ -65,6 +72,16 @@ def chat_box(request):
 
 active_chats = {}
 
+from rest_framework.authtoken.views import ObtainAuthToken
+from rest_framework.authtoken.models import Token
+from rest_framework.response import Response
+
+class CustomAuthToken(ObtainAuthToken):
+    def post(self, request, *args, **kwargs):
+        response = super().post(request, *args, **kwargs)
+        token = Token.objects.get(key=response.data['token'])
+        return Response({'token': token.key, 'username': token.user.username})
+
 
 
 # User Registration View
@@ -74,11 +91,77 @@ User = get_user_model()
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives import serialization
 
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_or_create_chat(request):
+    user = request.user
 
+    # Check if user is already in a chat
+    existing_chat = ChatSession.objects.filter(Q(user1=user) | Q(user2=user)).first()
+    if existing_chat:
+        chat = existing_chat
+    else:
+        # Try to find another user not in a chat
+        all_other_users = User.objects.exclude(id=user.id)
+        for other_user in all_other_users:
+            if not ChatSession.objects.filter(Q(user1=other_user) | Q(user2=other_user)).exists():
+                chat = ChatSession.objects.create(user1=user, user2=other_user)
+                break
+        else:
+            return Response({"detail": "No available users to match with"}, status=404)
+
+    partner = chat.user2 if chat.user1 == user else chat.user1
+    return Response({
+        "chat_id": chat.id,
+        "partner_username": partner.username
+    })
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_messages(request, chat_id):
+    chat = get_object_or_404(ChatSession, id=chat_id)
+
+    if request.user not in [chat.user1, chat.user2]:
+        return Response({'detail': 'You are not a participant in this chat.'}, status=403)
+
+    messages = chat.messages.order_by('timestamp')
+    serializer = MessageSerializer(messages, many=True, context={'request': request})
+    partner = chat.user2 if chat.user1 == request.user else chat.user1
+
+    return Response({
+        'partner': partner.username,
+        'messages': serializer.data
+    })
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def send_message(request, chat_id):
+    chat = get_object_or_404(ChatSession, id=chat_id)
+
+    if request.user not in [chat.user1, chat.user2]:
+        return Response({'detail': 'You are not a participant in this chat.'}, status=403)
+
+    text = request.data.get('text', '').strip()
+    if not text:
+        return Response({'error': 'Message text cannot be empty.'}, status=400)
+
+    message = Message.objects.create(
+        chat=chat,
+        sender=request.user,
+        text=text
+    )
+
+    return Response({
+        'status': 'Message sent',
+        'message_id': message.id
+    })
 
 class RegisterUserView(CreateAPIView):
     queryset = User.objects.all()
     serializer_class = UserSerializer
+    permission_classes = [AllowAny] 
 
     def create(self, request, *args, **kwargs):
         username = request.data.get("username")
@@ -133,14 +216,23 @@ def is_valid_username(username):
 
 
 class LoginView(APIView):
+
+    permission_classes = [AllowAny]
+
     def post(self, request):
         # Extract credentials and optional OTP
         username = request.data.get("username")
         password = request.data.get("password")
         otp_code = request.data.get("otp_code")  # optional, for 2FA
-
+        
         # —— Rate limiting by IP ——
         ip = request.META.get("HTTP_X_FORWARDED_FOR", request.META.get("REMOTE_ADDR", "unknown"))
+        
+         # Initialize IP fail record if missing
+        if ip not in failed_login_ips:
+            failed_login_ips[ip] = {"fail_count": 0, "last_time": 0, "wait_time": 0}
+        entry = failed_login_ips[ip]
+
         now_time = time.time()
         entry = failed_login_ips[ip]
         fail_count = entry["fail_count"]
@@ -157,7 +249,8 @@ class LoginView(APIView):
 
         # —— Credential check ——
         logger.info(f"[LOGIN] Attempting login from IP {ip} with username: {username}")
-        user = authenticate(username=username, password=password)
+        user = authenticate(request=request, username=username, password=password)
+
 
         if not user:
             # Increment failure count

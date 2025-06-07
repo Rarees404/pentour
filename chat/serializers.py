@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
+from .models import Message
 
 User = get_user_model()
 
@@ -23,4 +24,17 @@ class UserSerializer(serializers.ModelSerializer):
             user.public_key = public_key
         user.save()
         return user
+
+
+class MessageSerializer(serializers.ModelSerializer):
+    sender_username = serializers.CharField(source='sender.username', read_only=True)
+    is_current_user = serializers.SerializerMethodField()
+
+    def get_is_current_user(self, obj):
+        request = self.context.get('request')
+        return obj.sender == request.user
+
+    class Meta:
+        model = Message
+        fields = ['id', 'text', 'timestamp', 'sender_username', 'is_current_user']
 

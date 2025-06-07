@@ -7,6 +7,7 @@ from django.db import models
 import uuid
 from django.conf import settings
 from django.db import models
+from django.contrib.auth.models import User
 # Custom User Model (Stores Public Key)
 
 class User(AbstractUser):
@@ -22,6 +23,17 @@ class User(AbstractUser):
     # Avoid conflicts with Django's built-in User model
     groups = models.ManyToManyField(Group, related_name="chat_users", blank=True)
     user_permissions = models.ManyToManyField(Permission, related_name="chat_user_permissions", blank=True)
+
+class ChatSession(models.Model):
+    user1 = models.ForeignKey(User, on_delete=models.CASCADE, related_name='chats_as_user1')
+    user2 = models.ForeignKey(User, on_delete=models.CASCADE, related_name='chats_as_user2')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+class Message(models.Model):
+    chat = models.ForeignKey(ChatSession, on_delete=models.CASCADE, related_name='messages')
+    sender = models.ForeignKey(User, on_delete=models.CASCADE)
+    text = models.TextField()
+    timestamp = models.DateTimeField(auto_now_add=True)
 
 
 # Stores Encrypted Messages
