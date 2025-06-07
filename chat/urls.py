@@ -1,8 +1,9 @@
 from django.urls import path
+from .views import FriendLeftCheckView
 from .views import (
     RegisterUserView, LoginView, CheckChatView, LeaveChatView, auth_page,
     chat_box, SendMessageView, GetMessagesView, user_menu, CreateChatView, JoinChatView,
-    setup_2fa  # import the new views
+    setup_2fa
 )
 
 urlpatterns = [
@@ -18,6 +19,8 @@ urlpatterns = [
     path("join-chat/", JoinChatView.as_view(), name="join_chat"),
     path("chatbox/", chat_box, name="chatbox"),
     path("", auth_page, name="auth_page"),
+    path("friend-left-check/", FriendLeftCheckView.as_view(), name="friend_left_check"),
+
 
 
 ]

@@ -26,6 +26,7 @@ class User(AbstractUser):
 
 # Stores Encrypted Messages
 class Message(models.Model):
+
     id = models.UUIDField(
         primary_key=True,
         default=uuid.uuid4,

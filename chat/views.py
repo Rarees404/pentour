@@ -1,11 +1,5 @@
-from django.contrib.auth import authenticate, get_user_model
-from django.shortcuts import render
+from django.contrib.auth import get_user_model
 from django.contrib.auth import authenticate, login as django_login
-from rest_framework.authtoken.models import Token
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework import status
-import pyotp
 from django.db.models import Q
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
@@ -15,9 +9,7 @@ from rest_framework.authtoken.models import Token
 from rest_framework.generics import CreateAPIView
 from .serializers import UserSerializer
 from .models import Message
-from threading import Lock
 import os
-import uuid
 import logging
 import pyotp
 import qrcode
@@ -26,22 +18,18 @@ import base64
 from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-logger = logging.getLogger(__name__)
 from collections import defaultdict
 import time
 import re
 import random
+from django.core.cache import cache  # Optional for user notification
 
 
 
+logger = logging.getLogger(__name__)
 # Track failed login attempts per IP: {ip: (last_attempt_time, wait_time)}
 failed_login_ips = defaultdict(lambda: {'last_time': 0, 'wait_time': 0, 'fail_count': 0})
 
-
-# In-memory storage for matchmaking; in production, consider a persistent solution.
-#queue = []        # Stores waiting users for chat sessions
-#active_chats = {} # Maps chat IDs to a tuple of user objects (user1, user2)
-#queue_lock = Lock()
 sent_messages_cache = {}  # {msg.id: plaintext}
 
 
@@ -286,30 +274,43 @@ class CheckChatView(APIView):
                 }, status=status.HTTP_200_OK)
         return Response({"message": "No active chat found."}, status=status.HTTP_404_NOT_FOUND)
 
-
-# Leave Chat View - deletes the chat session and clears the message history
 class LeaveChatView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
         user = request.user
         chat_to_remove = None
+        user1 = user2 = None
 
-        for chat_id, (user1, user2) in active_chats.items():
-            if user in (user1, user2):
-                chat_to_remove = chat_id
-                break
+        try:
+            for chat_id, users in active_chats.items():
+                if user in users and len(users) == 2:
+                    user1, user2 = users
+                    chat_to_remove = chat_id
+                    break
 
-        if chat_to_remove:
-            user1, user2 = active_chats[chat_to_remove]
-            del active_chats[chat_to_remove]
-            # Delete all messages exchanged between these two users
-            Message.objects.filter(
-                Q(sender=user1, receiver=user2) | Q(sender=user2, receiver=user1)
-            ).delete()
-            return Response({"message": "You left the chat. Chat history cleared."}, status=status.HTTP_200_OK)
+            if chat_to_remove:
+                del active_chats[chat_to_remove]
 
-        return Response({"message": "No active chat to leave."}, status=status.HTTP_400_BAD_REQUEST)
+                # Delete all messages between both users
+                Message.objects.filter(
+                    Q(sender=user1, receiver=user2) | Q(sender=user2, receiver=user1)
+                ).delete()
+
+                # Optional: store a one-time message for the remaining user
+                other_user = user2 if user == user1 else user1
+                cache.set(f"user_left_msg_{other_user.id}", "Your friend left the chat.", timeout=60)
+
+                return Response({"message": "You left the chat. Chat history cleared."},
+                                status=status.HTTP_200_OK)
+
+            return Response({"message": "No active chat to leave."},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        except Exception as e:
+            return Response({"message": "No active chat to leave."},
+                            status=status.HTTP_400_BAD_REQUEST)
+
 
 
 # Send Message View - saves a message in the database
@@ -494,7 +495,15 @@ class GetMessagesView(APIView):
             "messages": out
         })
 
+class FriendLeftCheckView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
 
+    def get(self, request):
+        key = f"user_left_msg_{request.user.id}"
+        if cache.get(key):
+            cache.delete(key)
+            return Response({"message": "Your friend left the chat."}, status=200)
+        return Response({}, status=204)
 
 @login_required
 def setup_2fa(request):

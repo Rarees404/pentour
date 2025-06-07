@@ -388,6 +388,26 @@
             }
         });
 
+        // ✅ Check if the friend left (every 3 seconds)
+        setInterval(async () => {
+            try {
+                const resp = await fetch('/chat/friend-left-check/', {
+                    headers: { 'Authorization': 'Token ' + token }
+                });
+
+                if (resp.status === 200) {
+                    const data = await resp.json();
+                    alert(data.message);
+                    localStorage.removeItem('chat_id');
+                    localStorage.removeItem('partner');
+                    clearInterval(pollInterval);
+                    window.location.href = '/';
+                }
+            } catch (err) {
+                console.error("Error checking if friend left:", err);
+            }
+        }, 3000);
+
         checkChatReady();
     })();
 </script>
