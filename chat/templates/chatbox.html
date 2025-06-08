@@ -388,7 +388,7 @@
             }
         });
 
-        // Check if the friend(Other side of the communication) left (every 3 seconds)
+        // Check if the friend (Other side of the communication) left (every 3 seconds)
         setInterval(async () => {
             try {
                 const resp = await fetch('/chat/friend-left-check/', {

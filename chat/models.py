@@ -1,5 +1,3 @@
-# Create your models here.
-
 from django.contrib.auth.models import AbstractUser, Group, Permission
 import uuid
 from django.conf import settings

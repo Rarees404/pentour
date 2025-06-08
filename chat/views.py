@@ -27,6 +27,7 @@ from django.core.cache import cache  # Optional for user notification
 
 
 logger = logging.getLogger(__name__)
+
 # Track failed login attempts per IP: {ip: (last_attempt_time, wait_time)}
 failed_login_ips = defaultdict(lambda: {'last_time': 0, 'wait_time': 0, 'fail_count': 0})
 
@@ -343,18 +344,18 @@ class SendMessageView(APIView):
             receiver = user2 if request.user == user1 else user1
             logger.info("[SEND] Encrypting message for receiver '%s'", receiver.username)
 
-            # 1) Generate AES key
+            # Generate AES key
             aes_key = generate_aes_key()
             logger.debug("[SEND] Generated AES key (32 bytes)")
 
-            # 2) AES-encrypt the message
+            # AES-encrypt the message
             encrypted = encrypt_with_aes(aes_key, message_text)
             logger.debug(
                 "[SEND] AES encryption complete: ciphertext_len=%d, nonce=%s, tag=%s",
                 len(encrypted["ciphertext"]), encrypted["nonce"], encrypted["tag"]
             )
 
-            # 3) RSA-encrypt the AES key
+            # RSA-encrypt the AES key
             public_pem = receiver.public_key
             encrypted_key = encrypt_aes_key_with_rsa(public_pem, aes_key)
             logger.debug(
@@ -362,14 +363,14 @@ class SendMessageView(APIView):
                 len(encrypted_key)
             )
 
-            # 4) Sign the plaintext message
+            # Sign the plaintext message
             priv_path = f"chat/client/enc_test_keygen/static/keys/{request.user.username}_private_key.pem"
             with open(priv_path, "r") as f:
                 priv_pem = f.read()
             signature = sign_message(priv_pem, message_text)
             logger.debug("[SEND] Signature generated: signature_len=%d", len(signature))
 
-            # 5) Store in DB
+            # Store in DB
             msg = Message.objects.create(
                 sender=request.user,
                 receiver=receiver,
@@ -400,13 +401,13 @@ class GetMessagesView(APIView):
     def get(self, request, chat_id):
         logger.info("[GET] Retrieving messages for chat '%s' and user '%s'", chat_id, request.user.username)
 
-        # 1) Make sure the chat_id is valid
+        # Make sure the chat_id is valid
         if chat_id not in active_chats:
             logger.warning("[GET] Chat '%s' not found", chat_id)
             return Response({"error": "Chat not found"}, status=status.HTTP_404_NOT_FOUND)
 
         users = active_chats[chat_id]  # could be a list of length 1 or 2
-        # 2) If there's only one participant so far, return 204 (No Content).
+        # If there's only one participant so far, return 204 (No Content).
         if len(users) < 2:
             # Deny if the caller isn't even that one participant
             if request.user not in users:
@@ -418,7 +419,7 @@ class GetMessagesView(APIView):
             # If they are the creator, but no one else has joined yet:
             return Response(status=status.HTTP_204_NO_CONTENT)
 
-        # 3) Now that len(users) == 2, unpack safely
+        # Now that len(users) == 2, unpack safely
         user1, user2 = users
         if request.user not in (user1, user2):
             logger.warning(
@@ -427,13 +428,12 @@ class GetMessagesView(APIView):
             )
             return Response({"error": "Not a participant"}, status=status.HTTP_403_FORBIDDEN)
 
-        # 4) Filter messages between the two participants exactly as before:
+        # Filter messages between the two participants exactly as before:
         msgs = Message.objects.filter(
             Q(sender=user1, receiver=user2) | Q(sender=user2, receiver=user1)
         ).order_by("timestamp")
 
-        # 5) Load the private key and decrypt each message, etc.
-        #    (This is identical to what you already had below.)
+        # Load the private key and decrypt each message, etc.
         priv_path = f"chat/client/enc_test_keygen/static/keys/{request.user.username}_private_key.pem"
         with open(priv_path, "r") as f:
             private_pem = f.read()
@@ -475,7 +475,7 @@ class GetMessagesView(APIView):
                     plaintext = "[Decryption failed]"
 
             else:
-                # If I was the sender, show “[Sent]” or cached plaintext
+                # Show “[Sent]” or cached plaintext
                 plaintext = sent_messages_cache.get(m.id, "[Sent]")
 
             out.append({
