@@ -1,4 +1,3 @@
-from django.contrib.auth import authenticate, get_user_model
 from django.contrib.auth import authenticate, login as django_login
 from django.db.models import Q
 from rest_framework.views import APIView
@@ -22,32 +21,23 @@ from django.views.decorators.csrf import ensure_csrf_cookie
 from .models import Chat
 from django.shortcuts import get_object_or_404
 from .models import User
-from rest_framework.response import Response
-from django.shortcuts import get_object_or_404
-from .models import User
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
-from rest_framework.authentication import TokenAuthentication
 from rest_framework import permissions
-from rest_framework.authentication import SessionAuthentication, BasicAuthentication
-
+from rest_framework.authentication import SessionAuthentication
+from rest_framework.authentication import TokenAuthentication
 
 
 # Track failed login attempts per IP: {ip: (last_attempt_time, wait_time)}
 failed_login_ips = defaultdict(lambda: {'last_time': 0, 'wait_time': 0, 'fail_count': 0})
 
 logger = logging.getLogger(__name__)
-# In-memory storage for matchmaking; in production, consider a persistent solution.
-#queue = []        # Stores waiting users for chat sessions
-#active_chats = {} # Maps chat IDs to a tuple of user objects (user1, user2)
-#queue_lock = Lock()
-#sent_messages_cache = {}  # {msg.id: plaintext}
-
 
 
 # Home Page View - renders index.html
 def home(request):
     return render(request, "index.html")
+
 
 # Authentication Page View (Login/Register UI) - renders auth.html
 @ensure_csrf_cookie
@@ -78,15 +68,8 @@ def chatbox(request):
     }
     return render(request, "chatbox.html", context)
 
+
 active_chats = {}
-
-
-
-# User Registration View
-# Explicitly use the custom User model (chat_user)
-User = get_user_model()
-
-
 
 
 @api_view(['GET'])
@@ -187,10 +170,6 @@ class LoginView(APIView):
             logger.warning(f"[LOGIN] Invalid credentials for '{username}'.")
             return Response({"message": "Invalid username or password."}, status=status.HTTP_401_UNAUTHORIZED)
 
-        # (If you have 2FA logic, handle otp_code here.
-        # For brevity, we're assuming no 2FA in this snippet.)
-
-        # Create a Django session
         django_login(request, user)
 
         # Issue (or retrieve) the DRF token
@@ -233,8 +212,6 @@ class UploadPublicKeyView(APIView):
         # Save the encryption key
         user.public_key = encryption_pem
 
-        # Optionally validate the PEM format here before saving…
-
         # Save the signing key if provided
         if signing_pem:
             user.signing_public_key = signing_pem
@@ -242,7 +219,6 @@ class UploadPublicKeyView(APIView):
         user.save(update_fields=["public_key", "signing_public_key"])
         logger.info(f"[UPLOAD-KEY] Saved keys for user '{user.username}'.")
         return Response({"status": "ok"}, status=status.HTTP_200_OK)
-
 
 
 class UserMenuView(APIView):
@@ -264,7 +240,6 @@ class UserMenuView(APIView):
                 },
             }
         )
-from rest_framework.authentication import TokenAuthentication
 
 
 class CreateChatView(APIView):
@@ -445,7 +420,7 @@ class GetPublicKeyView(APIView):
 
 class SendMessageView(APIView):
     authentication_classes = [TokenAuthentication]
-    permission_classes     = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request, chat_id=None):
         chat = get_object_or_404(Chat, pin=chat_id)
@@ -460,10 +435,6 @@ class SendMessageView(APIView):
         aes_nonce = request.data.get("aes_nonce")
         aes_tag = request.data.get("aes_tag")
         signature = request.data.get("signature")
-        # The frontend sends sender_public_key, but we can retrieve the sender's public key
-        # directly from `me.public_key` when verifying a signature if needed,
-        # or from `partner.public_key` if the message is from the partner.
-        # So, no need to store sender_public_key explicitly with each message.
 
         # Validate that all crucial fields are present
         if not all([encrypted_text, encrypted_symmetric_key, aes_nonce, aes_tag, signature]):
@@ -527,7 +498,6 @@ class GetMessagesView(APIView):
             "current_user": me.username,
             "both_joined":  bool(chat.user1 and chat.user2),
         }, status=status.HTTP_200_OK)
-
 
 
 @login_required

@@ -1,103 +1,189 @@
 # Telepathy
 
+**Telepathy** is an anonymous, real-time chat platform with end-to-end RSA encryption.  
+Messages are **always stored encrypted** in the database and **decrypted using the user's private key** before being displayed. Digital signatures are also used for message integrity.
 
+---
 
-Telepathy is an anonymous, real-time chat platform with end-to-end RSA encryption.  
-Messages are **always stored encrypted** in the database and **decrypted using the user's private key** before being displayed, and also sigantures
+## 🔧 Setup Instructions
 
+### 1. Clone the Repository
 
-## Setup Instructions
+```bash
+git clone //repo link
+cd pentour
+```
 
+---
 
-Clone repo:
-git clone //repo link.
+### 2. Install Python 3
 
-## Install PostgreSQL
+Make sure Python 3 is installed on your system.
 
-Ensure PostgreSQL is installed and running on your system.
-**Download:**  
-[https://www.postgresql.org/download/](https://www.postgresql.org/download/)
+#### macOS (Python 3 is usually pre-installed)
 
-OR  Download using homebrew:
-1) brew install postgresql
-2) initdb /usr/local/var/postgres
-3) brew services start postgresql
-4) verify is running: brew services status postgresql
+To upgrade:
+```bash
+brew install python
+```
 
+#### Linux/Ubuntu:
 
+```bash
+sudo apt update
+sudo apt install python3 python3-venv python3-pip
+```
 
+#### Windows:
 
-OPEN NEW TERMINAL AND TYPE:
-1) psql postgres
-   you should enter postgres shell where you type commands and see something like this:
-   postgres=#
+1. Download Python from: [https://www.python.org/downloads/](https://www.python.org/downloads/)
+2. Run the installer, and **make sure to check** "Add Python to PATH".
+3. Verify installation:
+```cmd
+python --version
+```
 
+---
 
-1) COMMAND
-   DROP DATABASE IF EXISTS my_database;
+### 3. Install PostgreSQL
 
-2)
-DROP ROLE   IF EXISTS myproject_user;
+Make sure PostgreSQL is installed and running on your system.
 
+**Option A: Download Installer (Windows)**  
+Download and run the PostgreSQL installer from the link (https://www.postgresql.org/download/) and follow the setup wizard instructions.
 
+**Option B (macOS): Install via Homebrew**
+```bash
+brew install postgresql
+initdb /usr/local/var/postgres
+brew services start postgresql
+brew services status postgresql
+```
 
-postgres=# CREATE ROLE myproject_user
-WITH LOGIN
-PASSWORD 'mysecretpassword'
-CREATEDB
-CREATEROLE
-INHERIT;
+**Option C (Linux/Ubuntu):**
+```bash
+sudo apt update
+sudo apt install postgresql postgresql-contrib
+sudo service postgresql start
+```
 
-You should get: CREATE ROLE
+---
 
+### 4. Create Database and Role
 
+Open a terminal or command prompt and enter the PostgreSQL shell:
 
-postgres=# CREATE DATABASE my_database
-OWNER      = myproject_user
-ENCODING   = 'UTF8'
-LC_COLLATE = 'en_US.UTF-8'
-LC_CTYPE   = 'en_US.UTF-8'
-TEMPLATE   = template0;
+#### macOS/Linux:
+```bash
+psql postgres
+```
 
-you should get: CREATE DATABASE
+#### Windows (cmd):
+```cmd
+psql -U postgres
+```
 
-To quit shell:
+Then run the following commands **one by one** inside the PostgreSQL shell:
+
+```sql
+DROP DATABASE IF EXISTS my_database;
+DROP ROLE IF EXISTS myproject_user;
+
+CREATE ROLE myproject_user
+  WITH LOGIN
+  PASSWORD 'mysecretpassword'
+  CREATEDB
+  CREATEROLE
+  INHERIT;
+
+CREATE DATABASE my_database
+  OWNER = myproject_user
+  ENCODING = 'UTF8'
+  LC_COLLATE = 'en_US.UTF-8'
+  LC_CTYPE = 'en_US.UTF-8'
+  TEMPLATE = template0;
+```
+
+After creating the role, you should see:
+```
+CREATE ROLE
+```
+
+After creating the database, you should see:
+```
+CREATE DATABASE
+```
+
+To quit the shell:
+```sql
 \q
+```
 
+---
 
-Then go into the project repository using cd:
-command: cd pentour
+### 5. Set Up the Python Environment
 
-CREATE VIRTUAL ENVIROMENT
+Navigate to the project folder:
+```bash
+cd pentour
+```
+
+Create and activate a virtual environment:
+
+#### macOS/Linux:
+```bash
 python3 -m venv venv
-
-ACTIVATE VIRTUAL ENVIRONMENT  
 source venv/bin/activate
+```
 
+#### Windows (cmd):
+```cmd
+python -m venv venv
+venv\Scripts\activate
+```
 
-Install project dependencies
+---
+
+### 6. Install Dependencies
+
+```bash
 pip install --upgrade pip
 pip install -r requirements.txt
 pip install colorlog django-postgrespool2 pillow channels==4.2.0 channels_redis psycopg2-binary
+```
 
+---
 
-Apply Django migrations
+### 7. Apply Migrations
+
+```bash
 python manage.py migrate
+```
 
+---
 
-Start the development server
+### 8. Start the Development Server
+
+```bash
 python manage.py runserver
+```
 
+---
 
-### 🚀 Access the App
+## 🚀 Access the App
 
-Once the server is running, open your browser and navigate to:, 
-
-
+Once the server is running, open your browser and navigate to:
+For more information read the "Developer Notes"
 [http://127.0.0.1:8000/](http://127.0.0.1:8000/)
 
+---
 
-DEVELOPER NOTES:
-For using the app id recomend using icognito browsers, because the browser saves some tokens/keys,. If you log out and want to create a new user
-be sure that you opened a new incognioto page for creating the new user. If during running you encounter erros, feel free to contact the developer via email:
-r.boghean@student.maastrichuniversity.nl  refactor tis read me file, and do not modify the contend just make it better and give me the exact code to paste 
+## 🧠 Developer Notes
+
+> For testing purposes, we **recommend using an incognito/private browser window**.  
+This ensures that localStorage (tokens/keys) is cleared between user sessions.  
+If you're creating a new user after logout, make sure to open a new incognito window.
+
+If you encounter errors during setup or usage, feel free to contact the developer:
+
+📧 **r.boghean@student.maastrichuniversity.nl**

@@ -1,8 +1,8 @@
-# chat/serializers.py
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
-from .models import Message, User
+from .models import Message
 User = get_user_model()
+
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
@@ -37,7 +37,6 @@ class MessageSerializer(serializers.ModelSerializer):
         ]
 
     def get_is_current_user(self, obj):
-        # This assumes 'request' is available in the serializer context
         request = self.context.get('request')
         if request and request.user == obj.sender:
             return True

@@ -17,7 +17,6 @@
     />
 
     <style>
-        /* ---------- Base Colors & Animations ---------- */
         :root {
             --bg-primary: #0a0a1f;
             --bg-secondary: #121229;
@@ -61,7 +60,6 @@
             20%,24%,55% { opacity:0.4; }
         }
 
-        /* ---------- Menu Container ---------- */
         .menu {
             display: flex;
             flex-direction: column;
@@ -80,7 +78,6 @@
             to { transform: translateY(0); opacity: 1; }
         }
 
-        /* ---------- Buttons & Inputs ---------- */
         .menu button,
         .menu .input-wrapper {
             width: 100%;
@@ -136,7 +133,6 @@
             text-align: center;
         }
 
-        /* ---------- Modal Styling ---------- */
         .modal {
             display: none;
             position: fixed;
@@ -196,7 +192,6 @@
         <i class="fas fa-comment-dots"></i> Create Chat
     </button>
 
-    <!-- ====== Join Chat By PIN ====== -->
     <div class="input-wrapper">
         <input
                 type="text"
@@ -209,22 +204,17 @@
         <i class="fas fa-sign-in-alt"></i> Join Chat
     </button>
 
-    <!-- ====== Activate 2FA ====== -->
     <button class="btn" onclick="window.location.href='{% url 'setup_2fa' %}'">
         <i class="fas fa-shield-alt"></i> Activate 2FA
     </button>
 
-    <!-- ====== Logout ====== -->
     <button class="btn logout" onclick="logout()">
         <i class="fas fa-power-off"></i> Logout
     </button>
 
-    <!-- Status Message Placeholder -->
     <p id="joinStatus"></p>
 </div>
 
-<!-- ====== Modal to Display New Chat PIN ====== -->
-<!-- ====== Modal to Display New Chat PIN ====== -->
 <div id="chatModal" class="modal">
     <div class="modal-content">
         <p>Your new 4-digit PIN:</p>
@@ -242,7 +232,6 @@
 </div>
 
 
-<!-- ====== JavaScript ====== -->
 <script>
 
     async function joinCreatedChat() {
@@ -267,14 +256,12 @@
         }
     }
 
-    // Redirect to login if no token
     if (!localStorage.getItem("token")) {
         window.location.href = "/";
     }
 
     let createdChatId = null;
 
-    // Generate a new 4-digit PIN (no body needed)
     async function createChat() {
         const token = localStorage.getItem("token");
         const response = await fetch("/chat/create-chat/", {
@@ -283,7 +270,6 @@
                 "Content-Type": "application/json",
                 "Authorization": "Token " + token
             }
-            // No body → backend generates PIN
         });
 
         const result = await response.json();
@@ -296,7 +282,6 @@
         }
     }
 
-    // Copy the new PIN to clipboard
     function copyChatId() {
         const input = document.getElementById("chatIdDisplay");
         input.select();
@@ -306,12 +291,10 @@
         });
     }
 
-    // Close/hide the modal
     function closeModal() {
         document.getElementById("chatModal").classList.remove("show");
     }
 
-    // Join a chat using the PIN from the input box
     async function joinChatByPin() {
         const chatId = document.getElementById("chatPinInput").value.trim();
         const token = localStorage.getItem("token");
@@ -346,13 +329,11 @@
         }
     }
 
-    // Logout
     function logout() {
         localStorage.clear();
         window.location.href = "/";
     }
 
-    // Hide modal when clicking outside
     window.onclick = function(event) {
         const modal = document.getElementById("chatModal");
         if (event.target === modal) {

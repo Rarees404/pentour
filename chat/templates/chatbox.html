@@ -130,7 +130,6 @@
 
         const uploadEndpoint = "/chat/upload-public-key/"; // Endpoint for uploading RSA-OAEP public key
 
-        // --- Utility functions for ArrayBuffer <-> Base64 <-> PEM conversions ---
         function derToPem(derBuffer, label) {
             const bytes = new Uint8Array(derBuffer);
             let b64 = "";
@@ -159,9 +158,7 @@
             return bytes.buffer;
         }
 
-        // --- Cryptographic Helper Functions ---
 
-        // Generate AES key (for symmetric encryption of messages)
         function generateAESKey() {
             return window.crypto.getRandomValues(new Uint8Array(32)); // AES-256 key
         }
@@ -279,7 +276,6 @@
             );
         }
 
-        // --- Key Management and Generation ---
         let myEncryptionKeys; // Will store imported RSA-OAEP keys
         let mySigningKeys;    // Will store imported RSA-PSS keys
         let partnerPublicKey=null;
@@ -450,7 +446,7 @@
             // … send ciphertext to /chat/send-message/ …
         }
 
-        // --- DOM Elements ---
+        //DOM Elements
         const messagesDiv = document.getElementById("messages");
         const partnerNameSpan = document.getElementById("partner-name");
         const messageForm = document.getElementById("message-form");
@@ -459,13 +455,13 @@
         const chatContainer = document.getElementById("chatContainer");
         const leaveButton = document.getElementById("leave-chat");
 
-        // --- Chat Variables ---
+        //Chat Variables
         const chatId = localStorage.getItem("chat_id");
         const token = localStorage.getItem("token");
         let partnerUsername = localStorage.getItem("partner") || "…";
         let pollInterval = null;
 
-        // --- UI Functions ---
+        // UI Functions
         function showError(message) {
             const errorDiv = document.createElement("div");
             errorDiv.className = "error-message";
@@ -474,7 +470,7 @@
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
         }
 
-        // --- Main Chat Logic ---
+        //Main Chat Logic
         async function startChat() {
             if (!chatId || !token) {
                 alert("Missing chat ID or authentication token. Redirecting to home.");
@@ -813,7 +809,6 @@
         });
 
 
-        // --- Initial Call to Start the Application ---
         startChat();
     })();
 </script>
