@@ -1,8 +1,7 @@
 # chat/serializers.py
-from rest_framework import serializers
 from django.contrib.auth import get_user_model
-from .models import Message
-
+from rest_framework import serializers
+from .models import Message, User
 User = get_user_model()
 
 class UserSerializer(serializers.ModelSerializer):
@@ -18,29 +17,23 @@ class UserSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ["is_2fa_enabled", "totp_secret", "id"]
 
-# chat/serializers.py (example, adjust path as needed)
-from rest_framework import serializers
-from .models import Message, User # Assuming your User model is in .models
 
 class MessageSerializer(serializers.ModelSerializer):
-    # Add a field to indicate if the message was sent by the current user
-    is_current_user = serializers.SerializerMethodField()
-    sender_username = serializers.SerializerMethodField()
+    sender_public_key = serializers.CharField(source="sender.public_key",         read_only=True)
+    sender_signing_public_key = serializers.CharField(source="sender.signing_public_key", read_only=True)
 
     class Meta:
-        model = Message
+        model  = Message
         fields = [
-            'id',
-            'sender',
-            'receiver',
-            'encrypted_text',
-            'encrypted_symmetric_key', # <-- Make sure this is included
-            'aes_nonce',               # <-- Make sure this is included
-            'aes_tag',                 # <-- Make sure this is included
-            'signature',
-            'timestamp',
-            'is_current_user',
-            'sender_username',
+            "id",
+            "encrypted_text",
+            "encrypted_symmetric_key",
+            "aes_nonce",
+            "aes_tag",
+            "signature",
+            "timestamp",
+            "sender_public_key",
+            "sender_signing_public_key",
         ]
 
     def get_is_current_user(self, obj):

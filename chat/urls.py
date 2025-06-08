@@ -15,6 +15,7 @@ from .views import (
     CreateChatView,
     JoinChatView,
     setup_2fa, chatbox, GetPublicKeyView,
+    UploadPublicKeyView
 )
 
 urlpatterns = [
@@ -29,10 +30,14 @@ urlpatterns = [
     path("2fa/setup/", setup_2fa, name="setup_2fa"),
     path("get-public-key/<int:user_id>/", GetPublicKeyView.as_view(), name="get-public-key"),
 
+    path("upload-public-key/",UploadPublicKeyView.as_view(),name="upload_public_key"),
     # 4) Chat‐related API endpoints
     path("check-chat/",     CheckChatView.as_view(),    name="check-chat"),
-    path("leave-chat/<str:chat_id>/", LeaveChatView.as_view(), name="leave-chat"),
-    
+    path(
+        "leave-chat/",
+        LeaveChatView.as_view(),
+        name="leave_chat_body"
+    ),
     path('send-message/<str:chat_id>/', views.SendMessageView.as_view(), name='send_message'),
     path('get-messages/<str:chat_id>/', views.GetMessagesView.as_view(), name='get_messages'),
     

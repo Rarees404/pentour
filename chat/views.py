@@ -2,7 +2,6 @@ from django.contrib.auth import authenticate, get_user_model
 from django.contrib.auth import authenticate, login as django_login
 from django.db.models import Q
 from rest_framework.views import APIView
-from rest_framework.response import Response
 from rest_framework import status, permissions
 from rest_framework.authtoken.models import Token
 from rest_framework.generics import CreateAPIView
@@ -16,17 +15,28 @@ import base64
 from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-logger = logging.getLogger(__name__)
 from collections import defaultdict
 import re
 import random
 from django.views.decorators.csrf import ensure_csrf_cookie
 from .models import Chat
+from django.shortcuts import get_object_or_404
+from .models import User
+from rest_framework.response import Response
+from django.shortcuts import get_object_or_404
+from .models import User
+from rest_framework.decorators import api_view
+from rest_framework.response import Response
+from rest_framework.authentication import TokenAuthentication
+from rest_framework import permissions
+from rest_framework.authentication import SessionAuthentication, BasicAuthentication
+
+
 
 # Track failed login attempts per IP: {ip: (last_attempt_time, wait_time)}
 failed_login_ips = defaultdict(lambda: {'last_time': 0, 'wait_time': 0, 'fail_count': 0})
 
-
+logger = logging.getLogger(__name__)
 # In-memory storage for matchmaking; in production, consider a persistent solution.
 #queue = []        # Stores waiting users for chat sessions
 #active_chats = {} # Maps chat IDs to a tuple of user objects (user1, user2)
@@ -76,9 +86,13 @@ active_chats = {}
 # Explicitly use the custom User model (chat_user)
 User = get_user_model()
 
-from cryptography.hazmat.primitives.asymmetric import rsa
-from cryptography.hazmat.primitives import serialization
 
+
+
+@api_view(['GET'])
+def get_public_key(request, partner_id):
+    user = get_object_or_404(User, pk=partner_id)
+    return Response({ 'public_key': user.public_key_pem })
 
 
 class RegisterUserView(CreateAPIView):
@@ -92,6 +106,7 @@ class RegisterUserView(CreateAPIView):
         username = request.data.get("username")
         password = request.data.get("password")
         public_key = request.data.get("public_key")
+        signing_public_key = request.data.get("signing_public_key")
 
         # Basic input validation
         if not username or not is_valid_username(username):
@@ -132,8 +147,11 @@ class RegisterUserView(CreateAPIView):
             return Response(
                 {"message": "Username already exists."}, status=status.HTTP_400_BAD_REQUEST
             )
-
-        user = User(username=username, public_key=public_key)
+        user = User(
+                username=username,
+                public_key=public_key,
+                signing_public_key=signing_public_key
+        )
         user.set_password(password)
         user.save()
         logger.info(f"[REGISTER] User created with client‐provided public key: {username}")
@@ -144,7 +162,7 @@ class RegisterUserView(CreateAPIView):
 def is_valid_username(username):
     return re.match(r'^[a-zA-Z0-9_]+$', username) is not None
 
-from rest_framework.authentication import SessionAuthentication, BasicAuthentication
+
 class LoginView(APIView):
     """
     Expects JSON body: { "username": "...", "password": "...", "otp_code": "..." (optional) }
@@ -189,42 +207,43 @@ class LoginView(APIView):
 
 class UploadPublicKeyView(APIView):
     """
-    When a user logs in and doesn't have a public key yet, the JS will call this endpoint
-    (with sessionid cookie) to upload the newly‐generated public key PEM.
+    Accepts a JSON body:
+      {
+         "public_key": "<PEM string for RSA-OAEP encryption>",
+         "signing_public_key": "<PEM string for RSA-PSS signature verification>"
+      }
+    and updates the currently authenticated user's keys.
     """
+    authentication_classes = [TokenAuthentication]
     permission_classes = [permissions.IsAuthenticated]
 
-    def post(self, request):
-        public_key = request.data.get("public_key", None)
-        if not public_key:
+    def post(self, request, *args, **kwargs):
+        # Extract both PEMs
+        encryption_pem = request.data.get("public_key")
+        signing_pem = request.data.get("signing_public_key")
+
+        if not encryption_pem:
             return Response(
-                {"message": "Public key is required."}, status=status.HTTP_400_BAD_REQUEST
+                {"detail": "Missing public_key in request body."},
+                status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Very basic PEM‐format validation
-        if not public_key.startswith("-----BEGIN PUBLIC KEY-----") or not public_key.endswith(
-                "-----END PUBLIC KEY-----"
-        ):
-            return Response(
-                {"message": "Invalid public key format."}, status=status.HTTP_400_BAD_REQUEST
-            )
-
-        try:
-            from cryptography.hazmat.primitives import serialization
-
-            serialization.load_pem_public_key(public_key.encode())
-        except Exception as e:
-            logger.warning(f"[UPLOAD-KEY] Invalid public key provided by '{request.user.username}': {e}")
-            return Response(
-                {"message": "Invalid public key."}, status=status.HTTP_400_BAD_REQUEST
-            )
-
-        # Save on the user model
         user = request.user
-        user.public_key = public_key
-        user.save()
-        logger.info(f"[UPLOAD-KEY] Saved public key for user '{user.username}'.")
-        return Response({"message": "Public key saved."}, status=status.HTTP_200_OK)
+
+        # Save the encryption key
+        user.public_key = encryption_pem
+
+        # Optionally validate the PEM format here before saving…
+
+        # Save the signing key if provided
+        if signing_pem:
+            user.signing_public_key = signing_pem
+
+        user.save(update_fields=["public_key", "signing_public_key"])
+        logger.info(f"[UPLOAD-KEY] Saved keys for user '{user.username}'.")
+        return Response({"status": "ok"}, status=status.HTTP_200_OK)
+
+
 
 class UserMenuView(APIView):
     """
@@ -288,44 +307,53 @@ class JoinChatView(APIView):
         Expects JSON: { "chat_id": "<4-digit-PIN>" }
         """
         chat_id = request.data.get("chat_id")
-        logger.info(f"[JOIN-CHAT] Attempting to join chat with ID: '{chat_id}'")
-        logger.info(f"[JOIN-CHAT] Request data: {request.data}")
-
+        logger.info(f"[JOIN-CHAT] Incoming join request for PIN: {chat_id!r}")
         if not chat_id:
-            logger.warning("[JOIN-CHAT] No chat_id provided in request")
+            logger.warning("[JOIN-CHAT] No 'chat_id' provided in payload.")
             return Response({"message": "Chat ID is required."}, status=400)
 
+        #  Look up the Chat
         try:
             chat = Chat.objects.get(pin=chat_id)
-            logger.info(f"[JOIN-CHAT] Found chat: {chat}")
+            logger.info(f"[JOIN-CHAT] Chat found: {chat} (id={chat.pk})")
         except Chat.DoesNotExist:
-            logger.warning(f"[JOIN-CHAT] Chat with PIN '{chat_id}' not found")
+            logger.warning(f"[JOIN-CHAT] No chat matching PIN={chat_id}")
             return Response({"message": "Chat not found."}, status=404)
 
-        # Assign the user to the chat if possible
         user = request.user
+        logger.debug(f"[JOIN-CHAT] Current user: {user.username} (id={user.pk})")
+
+        #  Persist the user into an open slot
         if chat.user1 is None:
             chat.user1 = user
+            logger.info(f"[JOIN-CHAT] Assigned '{user.username}' to user1.")
         elif chat.user2 is None and chat.user1 != user:
             chat.user2 = user
-        elif user not in [chat.user1, chat.user2]:
+            logger.info(f"[JOIN-CHAT] Assigned '{user.username}' to user2.")
+        elif user in (chat.user1, chat.user2):
+            logger.info(f"[JOIN-CHAT] '{user.username}' was already in this chat.")
+        else:
+            logger.warning(f"[JOIN-CHAT] Chat {chat_id} is already full.")
             return Response({"message": "Chat is full."}, status=400)
 
+        #  Save the updated Chat record
         chat.save()
+        logger.debug(f"[JOIN-CHAT] Chat record saved. user1={chat.user1}, user2={chat.user2}")
 
-        # Update session for chatbox view
+        #  Store chat_id in session so GetMessagesView sees it
         request.session["chat_id"] = chat.pin
+        logger.debug(f"[JOIN-CHAT] chat_id stored in session.")
 
-        # Update in-memory chat participant tracking
-        if chat.pin not in active_chats:
-            active_chats[chat.pin] = []
-        if user not in active_chats[chat.pin]:
-            active_chats[chat.pin].append(user)
+        #  Mirror in-memory tracking (optional, but useful if you rely on it elsewhere)
+        active_list = active_chats.setdefault(chat.pin, [])
+        if user not in active_list:
+            active_list.append(user)
+            logger.debug(f"[JOIN-CHAT] Added to active_chats in-memory list.")
 
-        logger.info(f"[JOIN-CHAT] User '{user.username}' joined chat '{chat_id}'")
+        logger.info(f"[JOIN-CHAT] User '{user.username}' successfully joined chat '{chat_id}'.")
         return Response({"message": "Joined chat successfully."}, status=200)
 
-    # Rest of your existing code...
+
 # Check Active Chat View
 class CheckChatView(APIView):
     authentication_classes = [TokenAuthentication]
@@ -383,21 +411,37 @@ class LeaveChatView(APIView):
         return Response({"message": "Left chat."}, status=status.HTTP_200_OK)
 
 
-
 class GetPublicKeyView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
-    def get(self, request, user_id):
-        try:
-            user = User.objects.get(id=user_id)
-            if not user.public_key:
-                return Response({"message":"No public key stored."}, status=404)
-            return Response(user.public_key, status=200)
-        except User.DoesNotExist:
-            return Response({"message":"User not found."}, status=404)
+    """
+    GET /chat/get-public-key/<user_id>/
+    Returns JSON:
+      {
+        "public_key": "<PEM for RSA-OAEP encryption>",
+        "signing_public_key": "<PEM for RSA-PSS verification>"
+      }
+    """
+    authentication_classes = [TokenAuthentication]
+    permission_classes     = [permissions.IsAuthenticated]
 
+    def get(self, request, user_id, *args, **kwargs):
+        # Look up the target user
+        target = get_object_or_404(User, pk=user_id)
 
+        if not target.public_key:
+            return Response(
+                {"detail": "No encryption public_key stored for this user."},
+                status=status.HTTP_404_NOT_FOUND
+            )
 
-# chat/views.py
+        # Build response with both keys (signing key may be None)
+        response_data = {
+            "public_key": target.public_key,
+            "signing_public_key": target.signing_public_key
+        }
+
+        logger.debug(f"[GET-KEY] Returning keys for user_id={user_id}")
+        return Response(response_data, status=status.HTTP_200_OK)
+
 
 class SendMessageView(APIView):
     authentication_classes = [TokenAuthentication]
@@ -411,11 +455,11 @@ class SendMessageView(APIView):
             return Response({"detail": "Forbidden"}, status=status.HTTP_403_FORBIDDEN)
 
         # Extract ALL required cryptographic fields
-        encrypted_text          = request.data.get("encrypted_text")
+        encrypted_text = request.data.get("encrypted_text")
         encrypted_symmetric_key = request.data.get("encrypted_symmetric_key")
-        aes_nonce               = request.data.get("aes_nonce")
-        aes_tag                 = request.data.get("aes_tag")
-        signature               = request.data.get("signature")
+        aes_nonce = request.data.get("aes_nonce")
+        aes_tag = request.data.get("aes_tag")
+        signature = request.data.get("signature")
         # The frontend sends sender_public_key, but we can retrieve the sender's public key
         # directly from `me.public_key` when verifying a signature if needed,
         # or from `partner.public_key` if the message is from the partner.
@@ -433,26 +477,19 @@ class SendMessageView(APIView):
 
         # Create and save the Message with ALL cryptographic components
         msg = Message.objects.create(
-            sender                  = me,
-            receiver                = recipient,
-            encrypted_text          = encrypted_text,
-            encrypted_symmetric_key = encrypted_symmetric_key,
-            aes_nonce               = aes_nonce,
-            aes_tag                 = aes_tag,
-            signature               = signature,
+            sender=me,
+            receiver= recipient,
+            encrypted_text=encrypted_text,
+            encrypted_symmetric_key=encrypted_symmetric_key,
+            aes_nonce=aes_nonce,
+            aes_tag=aes_tag,
+            signature=signature,
         )
 
         serializer_data = MessageSerializer(msg).data
         return Response(serializer_data, status=status.HTTP_201_CREATED)
 
 
-
-from chat.client.enc_test_keygen.RSAEncryptor import (
-    decrypt_with_aes, decrypt_aes_key_with_rsa
-)
-from django.shortcuts import get_object_or_404
-
-# Updated GetMessagesView in views.py
 class GetMessagesView(APIView):
     authentication_classes = [TokenAuthentication]
     permission_classes     = [permissions.IsAuthenticated]

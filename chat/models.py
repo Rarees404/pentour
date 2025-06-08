@@ -10,19 +10,10 @@ class User(AbstractUser):
     is_2fa_enabled = models.BooleanField(default=False)
 
     # Only store the PEM‐encoded public key; no private key on server
-    public_key    = models.TextField(null=True, blank=True)
+    public_key= models.TextField(null=True, blank=True)
+    # PEM of the RSA-PSS public key (for verifying signatures)
+    signing_public_key = models.TextField(null=True, blank=True)
 
-    # Ensure Django’s permissions/list setup still works:
-    # groups       = models.ManyToManyField(
-    #     Group,
-    #     related_name="chat_users",
-    #     blank=True
-    # )
-    # user_permissions = models.ManyToManyField(
-    #     Permission,
-    #     related_name="chat_user_permissions",
-    #     blank=True
-    # )
 
 class Chat(models.Model):
     pin = models.CharField(max_length=4, unique=True, db_index=True)
