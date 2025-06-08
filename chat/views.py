@@ -297,7 +297,7 @@ class LeaveChatView(APIView):
                     Q(sender=user1, receiver=user2) | Q(sender=user2, receiver=user1)
                 ).delete()
 
-                # Optional: store a one-time message for the remaining user
+                # Update the other side
                 other_user = user2 if user == user1 else user1
                 cache.set(f"user_left_msg_{other_user.id}", "Your friend left the chat.", timeout=60)
 
