@@ -397,47 +397,49 @@ class GetPublicKeyView(APIView):
 
 
 
-# Updated SendMessageView in views.py
+# chat/views.py
+
 class SendMessageView(APIView):
     authentication_classes = [TokenAuthentication]
     permission_classes     = [permissions.IsAuthenticated]
 
     def post(self, request, chat_id=None):
-        """
-        POST /chat/send-message/<chat_id>/
-        Expects JSON body: { "encrypted_text": <base64 ciphertext>, "signature": <base64 signature> }
-        Uses chat_id from URL to identify which Chat to send into.
-        """
-        # 1) Load (or 404) the Chat by its 4-digit PIN from the URL
         chat = get_object_or_404(Chat, pin=chat_id)
 
-        # 2) Verify the requesting user is one of the two participants of this chat
         me = request.user
         if me != chat.user1 and me != chat.user2:
             return Response({"detail": "Forbidden"}, status=status.HTTP_403_FORBIDDEN)
 
-        # 3) Extract encrypted_text and signature from request body
-        encrypted_text = request.data.get("encrypted_text")
-        signature      = request.data.get("signature")
+        # Extract ALL required cryptographic fields
+        encrypted_text          = request.data.get("encrypted_text")
+        encrypted_symmetric_key = request.data.get("encrypted_symmetric_key")
+        aes_nonce               = request.data.get("aes_nonce")
+        aes_tag                 = request.data.get("aes_tag")
+        signature               = request.data.get("signature")
+        # The frontend sends sender_public_key, but we can retrieve the sender's public key
+        # directly from `me.public_key` when verifying a signature if needed,
+        # or from `partner.public_key` if the message is from the partner.
+        # So, no need to store sender_public_key explicitly with each message.
 
-        if not all([encrypted_text, signature]):
+        # Validate that all crucial fields are present
+        if not all([encrypted_text, encrypted_symmetric_key, aes_nonce, aes_tag, signature]):
             return Response(
                 {"message": "Missing required encryption fields."},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # 4) Determine who the recipient is (the “other” user in the chat)
-        if me == chat.user1:
-            recipient = chat.user2
-        else:
-            recipient = chat.user1
+        # Determine the recipient
+        recipient = chat.user2 if (me == chat.user1) else chat.user1
 
-        # 5) Create and save the Message
+        # Create and save the Message with ALL cryptographic components
         msg = Message.objects.create(
-            sender=me,
-            receiver=recipient,
-            encrypted_text=encrypted_text,
-            signature=signature,
+            sender                  = me,
+            receiver                = recipient,
+            encrypted_text          = encrypted_text,
+            encrypted_symmetric_key = encrypted_symmetric_key,
+            aes_nonce               = aes_nonce,
+            aes_tag                 = aes_tag,
+            signature               = signature,
         )
 
         serializer_data = MessageSerializer(msg).data
@@ -478,7 +480,7 @@ class GetMessagesView(APIView):
         ).order_by("timestamp")
 
         # 5) Serialize those messages
-        serializer_data = MessageSerializer(messages_qs, many=True).data
+        serializer_data = MessageSerializer(messages_qs, many=True, context={'request': request}).data 
 
         # 6) Return JSON (including partner’s username/id and “both_joined” flag)
         return Response({

@@ -5,7 +5,6 @@
     <title>Secure Chat • Live</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-    <!-- Fonts & FontAwesome -->
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" crossorigin="anonymous" />
 
@@ -245,7 +244,6 @@
     </div>
 </div>
 
-<!-- ——— Header Bar ——— -->
 <header id="chat-header">
     <div class="chat-title">
         <i class="fas fa-comments"></i>
@@ -256,28 +254,28 @@
     </a>
 </header>
 
-<!-- ——— Main Chat Container ——— -->
 <div id="chatContainer" style="display: none;">
-    <!-- Message list -->
     <div id="messages"></div>
 
-    <!-- Message input form -->
     <form id="message-form">
         <input type="text" id="message-input" placeholder="Type your message..." required />
         <button type="submit">Send <i class="fas fa-paper-plane"></i></button>
     </form>
 
-    <!-- Leave button -->
     <button id="leave-chat"><i class="fas fa-sign-out-alt"></i> Leave Chat</button>
 </div>
 
 <script>
     (async function() {
-        const STORAGE_PRIV = "private_key_pem";
-        const STORAGE_PUB = "public_key_pem";
-        const uploadEndpoint = "/chat/upload-public-key/";
+        // Local Storage Keys
+        const STORAGE_PRIV = "private_key_pem"; // RSA-OAEP private key for decryption
+        const STORAGE_PUB = "public_key_pem";   // RSA-OAEP public key for encryption by others
+        const STORAGE_SIGN_PRIV = "signing_private_key_pem"; // RSA-PSS private key for signing
+        const STORAGE_SIGN_PUB = "signing_public_key_pem"; // RSA-PSS public key for signature verification by others
 
-        // Utility functions
+        const uploadEndpoint = "/chat/upload-public-key/"; // Endpoint for uploading RSA-OAEP public key
+
+        // --- Utility functions for ArrayBuffer <-> Base64 <-> PEM conversions ---
         function derToPem(derBuffer, label) {
             const bytes = new Uint8Array(derBuffer);
             let b64 = "";
@@ -306,119 +304,256 @@
             return bytes.buffer;
         }
 
+        // --- Cryptographic Helper Functions ---
+
+        // Generate AES key (for symmetric encryption of messages)
+        function generateAESKey() {
+            return window.crypto.getRandomValues(new Uint8Array(32)); // AES-256 key
+        }
+
+        // AES-GCM encryption
+        async function encryptWithAES(key, plaintext) {
+            const iv = window.crypto.getRandomValues(new Uint8Array(12)); // 96-bit IV recommended for AES-GCM
+            const algorithm = { name: 'AES-GCM', iv: iv };
+
+            const cryptoKey = await window.crypto.subtle.importKey(
+                'raw',
+                key,
+                { name: 'AES-GCM' },
+                false, // not extractable
+                ['encrypt']
+            );
+
+            const encrypted = await window.crypto.subtle.encrypt(
+                algorithm,
+                cryptoKey,
+                new TextEncoder().encode(plaintext)
+            );
+
+            // AES-GCM encrypted output is ciphertext + authentication tag.
+            // The tag is usually the last 16 bytes.
+            const ciphertext = encrypted.slice(0, encrypted.byteLength - 16);
+            const tag = encrypted.slice(encrypted.byteLength - 16);
+
+            return {
+                ciphertext: arrayBufferToBase64(ciphertext),
+                nonce: arrayBufferToBase64(iv),
+                tag: arrayBufferToBase64(tag)
+            };
+        }
+
+        // AES-GCM decryption
+        async function decryptWithAES(key, data) {
+            const ciphertext = base64ToArrayBuffer(data.ciphertext);
+            const nonce = base64ToArrayBuffer(data.nonce);
+            const tag = base64ToArrayBuffer(data.tag);
+
+            // Combine ciphertext and tag for decryption
+            const combined = new Uint8Array(ciphertext.byteLength + tag.byteLength);
+            combined.set(new Uint8Array(ciphertext));
+            combined.set(new Uint8Array(tag), ciphertext.byteLength);
+
+            const algorithm = { name: 'AES-GCM', iv: nonce };
+
+            const cryptoKey = await window.crypto.subtle.importKey(
+                'raw',
+                key,
+                { name: 'AES-GCM' },
+                false, // not extractable
+                ['decrypt']
+            );
+
+            const decrypted = await window.crypto.subtle.decrypt(
+                algorithm,
+                cryptoKey,
+                combined
+            );
+
+            return new TextDecoder().decode(decrypted);
+        }
+
+        // Import RSA Public Key for Encryption (OAEP)
         async function importRsaPublicKeyForEncrypt(pem) {
-            const b64 = pem.replace(/-----.*?-----/g, "").replace(/\s+/g, "");
+            const b64 = pem.replace(/-----.*?-----|[\n\r]/g, ""); // Remove PEM headers and newlines
             const der = Uint8Array.from(window.atob(b64), c => c.charCodeAt(0)).buffer;
             return await window.crypto.subtle.importKey(
-                "spki",
+                "spki", // SubjectPublicKeyInfo format
                 der,
                 { name: "RSA-OAEP", hash: "SHA-256" },
-                true,
+                true, // extractable
                 ["encrypt"]
             );
         }
 
-        async function importRsaPrivateKey(pem) {
-            const b64 = pem.replace(/-----.*?-----/g, "").replace(/\s+/g, "");
+        // Import RSA Private Key for Decryption (OAEP)
+        async function importRsaPrivateKeyForDecrypt(pem) {
+            const b64 = pem.replace(/-----.*?-----|[\n\r]/g, "");
             const der = Uint8Array.from(window.atob(b64), c => c.charCodeAt(0)).buffer;
             return await window.crypto.subtle.importKey(
-                "pkcs8",
+                "pkcs8", // PrivateKeyInfo format
                 der,
                 { name: "RSA-OAEP", hash: "SHA-256" },
-                true,
+                true, // extractable
                 ["decrypt"]
             );
         }
 
-        async function importRsaPublicKeyForVerify(pem) {
-            const b64 = pem.replace(/-----.*?-----/g, "").replace(/\s+/g, "");
+        // Import RSA Private Key for Signing (PSS)
+        async function importRsaPrivateKeyForSign(pem) {
+            const b64 = pem.replace(/-----.*?-----|[\n\r]/g, "");
             const der = Uint8Array.from(window.atob(b64), c => c.charCodeAt(0)).buffer;
             return await window.crypto.subtle.importKey(
-                "spki",
+                "pkcs8", // PrivateKeyInfo format
                 der,
                 { name: "RSA-PSS", hash: "SHA-256" },
-                true,
+                true, // extractable
+                ["sign"]
+            );
+        }
+
+        // Import RSA Public Key for Verification (PSS)
+        async function importRsaPublicKeyForVerify(pem) {
+            const b64 = pem.replace(/-----.*?-----|[\n\r]/g, "");
+            const der = Uint8Array.from(window.atob(b64), c => c.charCodeAt(0)).buffer;
+            return await window.crypto.subtle.importKey(
+                "spki", // SubjectPublicKeyInfo format
+                der,
+                { name: "RSA-PSS", hash: "SHA-256" },
+                true, // extractable
                 ["verify"]
             );
         }
 
-        // Key management functions
-        async function loadPublicKeyOfOtherUser() {
+        // --- Key Management and Generation ---
+        let myEncryptionKeys; // Will store imported RSA-OAEP keys
+        let mySigningKeys;    // Will store imported RSA-PSS keys
+        let partnerPublicKey; // Will store imported partner's RSA-OAEP public key
+
+        async function loadAndGenerateKeys() {
+            let privPem = localStorage.getItem(STORAGE_PRIV);
+            let pubPem = localStorage.getItem(STORAGE_PUB);
+            let signPrivPem = localStorage.getItem(STORAGE_SIGN_PRIV);
+            let signPubPem = localStorage.getItem(STORAGE_SIGN_PUB);
+
+            // If any critical key is missing, generate all new pairs
+            if (!privPem || !pubPem || !signPrivPem || !signPubPem) {
+                console.log("Generating new RSA key pairs...");
+                try {
+                    // RSA-OAEP Key Pair (for Encryption/Decryption of AES key)
+                    const encKeyPair = await window.crypto.subtle.generateKey(
+                        {
+                            name: "RSA-OAEP",
+                            modulusLength: 2048,
+                            publicExponent: new Uint8Array([1, 0, 1]), // 65537
+                            hash: "SHA-256"
+                        },
+                        true, // extractable
+                        ["encrypt", "decrypt"]
+                    );
+                    const encPrivDer = await window.crypto.subtle.exportKey("pkcs8", encKeyPair.privateKey);
+                    privPem = derToPem(encPrivDer, "PRIVATE KEY");
+                    localStorage.setItem(STORAGE_PRIV, privPem);
+                    const encPubDer = await window.crypto.subtle.exportKey("spki", encKeyPair.publicKey);
+                    pubPem = derToPem(encPubDer, "PUBLIC KEY");
+                    localStorage.setItem(STORAGE_PUB, pubPem);
+                    myEncryptionKeys = { privateKey: encKeyPair.privateKey, publicKey: encKeyPair.publicKey };
+
+                    // RSA-PSS Key Pair (for Digital Signatures)
+                    const signKeyPair = await window.crypto.subtle.generateKey(
+                        {
+                            name: "RSA-PSS",
+                            modulusLength: 2048,
+                            publicExponent: new Uint8Array([1, 0, 1]), // 65537
+                            hash: "SHA-256"
+                        },
+                        true, // extractable
+                        ["sign", "verify"]
+                    );
+                    const signPrivDer = await window.crypto.subtle.exportKey("pkcs8", signKeyPair.privateKey);
+                    signPrivPem = derToPem(signPrivDer, "PRIVATE KEY");
+                    localStorage.setItem(STORAGE_SIGN_PRIV, signPrivPem);
+                    const signPubDer = await window.crypto.subtle.exportKey("spki", signKeyPair.publicKey);
+                    signPubPem = derToPem(signPubDer, "PUBLIC KEY");
+                    localStorage.setItem(STORAGE_SIGN_PUB, signPubPem);
+                    mySigningKeys = { privateKey: signKeyPair.privateKey, publicKey: signKeyPair.publicKey };
+
+                    // Upload the RSA-OAEP public key to the server
+                    const token = localStorage.getItem("token");
+                    if (token) {
+                        const resp = await fetch(uploadEndpoint, {
+                            method: "POST",
+                            headers: {
+                                "Content-Type": "application/json",
+                                "Authorization": "Token " + token
+                            },
+                            body: JSON.stringify({ public_key: pubPem })
+                        });
+                        if (!resp.ok) {
+                            console.warn("Could not upload public key:", await resp.text());
+                            showError("Failed to upload encryption public key.");
+                        } else {
+                            console.log("RSA-OAEP Public key uploaded successfully.");
+                        }
+                    } else {
+                        console.warn("No token found, cannot upload public key.");
+                    }
+
+                } catch (err) {
+                    console.error("Error generating RSA key pairs:", err);
+                    showError("Failed to generate encryption keys.");
+                    throw err; // Re-throw to stop chat initialization if keys are essential
+                }
+            } else {
+                console.log("Loading existing RSA key pairs...");
+                // Import existing keys
+                try {
+                    myEncryptionKeys = {
+                        privateKey: await importRsaPrivateKeyForDecrypt(privPem),
+                        publicKey: await importRsaPublicKeyForEncrypt(pubPem)
+                    };
+                    mySigningKeys = {
+                        privateKey: await importRsaPrivateKeyForSign(signPrivPem),
+                        publicKey: await importRsaPublicKeyForVerify(signPubPem)
+                    };
+                } catch (err) {
+                    console.error("Error importing stored RSA key pairs:", err);
+                    showError("Failed to load encryption keys (messages may be unencrypted). Please clear local storage and try again.");
+                    throw err; // Re-throw to signify a problem
+                }
+            }
+        }
+
+        async function loadPartnerPublicKey() {
             const partnerId = localStorage.getItem("partner_id");
             const token = localStorage.getItem("token");
 
             if (!partnerId || !token) {
-                throw new Error("Missing partner ID or token");
+                console.warn("Missing partner ID or token for public key fetch.");
+                return null;
             }
 
-            const response = await fetch("/chat/get-public-key/" + partnerId + "/", {
-                headers: { "Authorization": "Token " + token }
-            });
-
-            if (!response.ok) throw new Error("Could not fetch partner public key.");
-
-            const partnerPubPem = await response.text();
-            localStorage.setItem("partner_public_key", partnerPubPem);
-            return partnerPubPem;
-        }
-
-        async function retrieveOwnPrivateKey() {
-            const privateKeyPem = localStorage.getItem(STORAGE_PRIV);
-            if (!privateKeyPem) throw new Error("Private key not found.");
-            return await importRsaPrivateKey(privateKeyPem);
-        }
-
-        // Initialize RSA key pair if not exists
-        let privPem = localStorage.getItem(STORAGE_PRIV);
-        if (!privPem) {
             try {
-                const keyPair = await window.crypto.subtle.generateKey(
-                    {
-                        name: "RSA-PSS",
-                        modulusLength: 2048,
-                        publicExponent: new Uint8Array([1, 0, 1]),
-                        hash: "SHA-256"
-                    },
-                    true,
-                    ["sign", "verify"]
-                );
-
-                // Generate separate key pair for encryption
-                const encKeyPair = await window.crypto.subtle.generateKey(
-                    {
-                        name: "RSA-OAEP",
-                        modulusLength: 2048,
-                        publicExponent: new Uint8Array([1, 0, 1]),
-                        hash: "SHA-256"
-                    },
-                    true,
-                    ["encrypt", "decrypt"]
-                );
-
-                const privDer = await window.crypto.subtle.exportKey("pkcs8", encKeyPair.privateKey);
-                privPem = derToPem(privDer, "PRIVATE KEY");
-                localStorage.setItem(STORAGE_PRIV, privPem);
-
-                const pubDer = await window.crypto.subtle.exportKey("spki", encKeyPair.publicKey);
-                const pubPem = derToPem(pubDer, "PUBLIC KEY");
-                localStorage.setItem(STORAGE_PUB, pubPem);
-
-                const resp = await fetch(uploadEndpoint, {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        "Authorization": "Token " + localStorage.getItem("token")
-                    },
-                    body: JSON.stringify({ public_key: pubPem })
+                const response = await fetch(`/chat/get-public-key/${partnerId}/?_=${new Date().getTime()}`, {
                 });
-                if (!resp.ok) console.warn("Could not upload public key:", await resp.text());
+
+                if (!response.ok) {
+                    throw new Error(`Server returned ${response.status}: ${await response.text()}`);
+                }
+
+                const partnerPubPem = await response.text();
+                // Store for future use, though not strictly necessary if always fetching
+                localStorage.setItem("partner_public_key", partnerPubPem);
+                partnerPublicKey = await importRsaPublicKeyForEncrypt(partnerPubPem);
+                console.log("Partner's public key loaded.");
+                return partnerPublicKey;
             } catch (err) {
-                console.error("Error generating RSA key pair:", err);
-                showError("Failed to generate encryption keys");
+                console.error("Error fetching or importing partner public key:", err);
+                showError("Failed to load partner's public key. Cannot send encrypted messages.");
+                return null;
             }
         }
 
-        // DOM elements
+        // --- DOM Elements ---
         const messagesDiv = document.getElementById("messages");
         const partnerNameSpan = document.getElementById("partner-name");
         const messageForm = document.getElementById("message-form");
@@ -427,13 +562,13 @@
         const chatContainer = document.getElementById("chatContainer");
         const leaveButton = document.getElementById("leave-chat");
 
-        // Chat variables
+        // --- Chat Variables ---
         const chatId = localStorage.getItem("chat_id");
         const token = localStorage.getItem("token");
         let partnerUsername = localStorage.getItem("partner") || "…";
         let pollInterval = null;
 
-        // Error handling
+        // --- UI Functions ---
         function showError(message) {
             const errorDiv = document.createElement("div");
             errorDiv.className = "error-message";
@@ -442,14 +577,21 @@
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
         }
 
-        // Initialize UI
-        partnerNameSpan.textContent = partnerUsername;
-
-        // Chat functions
+        // --- Main Chat Logic ---
         async function startChat() {
             if (!chatId || !token) {
-                alert("Missing chat ID or authentication token.");
+                alert("Missing chat ID or authentication token. Redirecting to home.");
                 window.location.href = "/";
+                return;
+            }
+
+            try {
+                await loadAndGenerateKeys(); // Load or generate our own keys first
+            } catch (e) {
+                // Key generation/load failed, user is already alerted by showError
+                console.error("Critical: Key setup failed, cannot proceed with chat.");
+                // Optionally redirect or disable chat features
+                // window.location.href = "/";
                 return;
             }
 
@@ -470,62 +612,77 @@
                     return;
                 }
             } catch (err) {
-                console.error("Join-chat error:", err);
+                console.error("Join-chat network error:", err);
                 alert("Network error while joining chat.");
                 window.location.href = "/";
                 return;
             }
 
             pollInterval = setInterval(checkChatReady, 2000);
-            await checkChatReady();
+            await checkChatReady(); // Initial check immediately
         }
 
         async function checkChatReady() {
-            const resp = await fetch(`/chat/get-messages/${chatId}/`, {
-                method: "GET",
-                headers: {
-                    "Authorization": "Token " + localStorage.getItem("token"),
-                }
-            });
+            try {
+                const resp = await fetch(`/chat/get-messages/${chatId}/`, {
+                    method: "GET",
+                    headers: {
+                        "Authorization": "Token " + token,
+                    }
+                });
 
-            if (resp.status === 200) {
+                if (resp.status === 204) { // No Content, chat not ready or no new messages
+                    return;
+                }
+                if (resp.status === 404) {
+                    alert("Chat not found or your partner left before joining.");
+                    localStorage.clear();
+                    clearInterval(pollInterval);
+                    window.location.href = "/";
+                    return;
+                }
+                if (resp.status === 403) {
+                    alert("You’re not authorized for this chat.");
+                    clearInterval(pollInterval);
+                    window.location.href = "/";
+                    return;
+                }
+                if (!resp.ok) { // Other HTTP errors
+                    console.error("checkChatReady() failed with status:", resp.status, await resp.text());
+                    return;
+                }
+
                 const data = await resp.json();
 
+                // 1) Hide the overlay and show chat right away if both joined
                 if (data.both_joined) {
-                    // 1) Hide the overlay and show chat right away
                     waitingOverlay.style.display = "none";
                     chatContainer.style.display = "flex";
 
-                    // 2) Store partner_id so send‐message can use it
+                    // 2) Store partner_id so send-message can use it
                     if (data.partner_id) {
                         localStorage.setItem("partner_id", data.partner_id);
+                        await loadPartnerPublicKey(); // Load partner's public key once chat is ready
                     }
 
-                    // 3) Then attempt to load encryption keys (errors won’t block UI)
-                    try {
-                        await loadPublicKeyOfOtherUser();
-                        await retrieveOwnPrivateKey();
-                    } catch (err) {
-                        console.warn("Key error (UI already shown):", err);
-                        showError("Failed to load encryption keys (messages may be unencrypted).");
-                    }
 
-                    // 4) Update partner’s name if needed
+                    // 3) Update partner's name if needed
                     if (data.partner && data.partner !== partnerUsername) {
                         partnerUsername = data.partner;
                         partnerNameSpan.textContent = partnerUsername;
                         localStorage.setItem("partner", partnerUsername);
                     }
 
-                    // 5) Render any existing messages
+                    // 4) Render any existing messages
                     await renderMessages(data.messages, data.current_user);
 
-                    // 6) Switch to polling only for new messages from now on
+                    // 5) Switch to polling only for new messages from now on
                     clearInterval(pollInterval);
                     pollInterval = setInterval(fetchNewMessages, 2000);
                 }
-            } else {
-                console.error("checkChatReady() failed with status:", resp.status);
+            } catch (err) {
+                console.error("Error during checkChatReady:", err);
+                // Consider showing a user-friendly error message or attempting to reconnect
             }
         }
 
@@ -534,7 +691,17 @@
                 const resp = await fetch("/chat/get-messages/" + chatId + "/", {
                     headers: { "Authorization": "Token " + token }
                 });
-                if (!resp.ok) return;
+                if (!resp.ok) {
+                    if (resp.status === 404 || resp.status === 403) {
+                        alert("Chat ended or access revoked. Redirecting.");
+                        localStorage.clear();
+                        clearInterval(pollInterval);
+                        window.location.href = "/";
+                        return;
+                    }
+                    console.warn("fetchNewMessages got status", resp.status);
+                    return;
+                }
 
                 const data = await resp.json();
 
@@ -542,6 +709,8 @@
                     partnerUsername = data.partner;
                     partnerNameSpan.textContent = partnerUsername;
                     localStorage.setItem("partner", partnerUsername);
+                    // Reload partner's public key if partner changes (unlikely in a 1:1 chat)
+                    await loadPartnerPublicKey();
                 }
 
                 await renderMessages(data.messages, data.current_user);
@@ -551,138 +720,140 @@
         }
 
         async function renderMessages(messages, currentUserUsername) {
+            // Clear only if needed (e.g., if re-rendering all messages)
             messagesDiv.innerHTML = "";
 
             for (const msg of messages) {
-                await renderEncryptedMessage(msg, currentUserUsername);
+                await renderProcessedMessage(msg, currentUserUsername);
             }
 
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
         }
 
-        async function renderEncryptedMessage(msg, currentUserUsername) {
+        async function renderProcessedMessage(msg, currentUserUsername) {
             const isCurrentUser = (msg.sender_username === currentUserUsername);
 
-            try {
-                const privPemLocal = localStorage.getItem("private_key_pem");
-                if (!privPemLocal) {
-                    showError("Private key missing");
-                    return;
-                }
+            const div = document.createElement("div");
+            div.className = isCurrentUser ? "sent" : "received";
 
-                const myPrivKey = await importRsaPrivateKey(privPemLocal);
-                const encryptedArrayBuffer = base64ToArrayBuffer(msg.encrypted_text);
+            const usernameEl = document.createElement('div');
+            usernameEl.className = 'message-username';
+            usernameEl.textContent = isCurrentUser ? 'You' : msg.sender_username;
 
-                let decryptedText;
+            const textEl = document.createElement('div');
+            const timeEl = document.createElement('div');
+            timeEl.className = 'message-time';
+            timeEl.textContent = new Date(msg.timestamp).toLocaleTimeString();
+
+            let displayContent = "";
+            let signatureStatus = "";
+
+            // Attempt decryption
+            if (myEncryptionKeys && myEncryptionKeys.privateKey && msg.encrypted_symmetric_key && msg.encrypted_text && msg.aes_nonce && msg.aes_tag) {
                 try {
-                    const decryptedArrayBuffer = await window.crypto.subtle.decrypt(
+                    // Decrypt AES key with our RSA private key
+                    const encryptedAESKeyBuffer = base64ToArrayBuffer(msg.encrypted_symmetric_key);
+                    const aesKeyBuffer = await window.crypto.subtle.decrypt(
                         { name: "RSA-OAEP" },
-                        myPrivKey,
-                        encryptedArrayBuffer
+                        myEncryptionKeys.privateKey,
+                        encryptedAESKeyBuffer
                     );
-                    decryptedText = new TextDecoder().decode(decryptedArrayBuffer);
+
+                    // Decrypt message content with AES key
+                    const aesData = {
+                        ciphertext: msg.encrypted_text,
+                        nonce: msg.aes_nonce,
+                        tag: msg.aes_tag
+                    };
+                    displayContent = await decryptWithAES(new Uint8Array(aesKeyBuffer), aesData);
+
                 } catch (decryptError) {
-                    console.error("Decryption failed:", decryptError);
-                    decryptedText = "🔐 Unable to decrypt message";
+                    console.error("Decryption failed for message:", msg.id, decryptError);
+                    displayContent = "🔐 Unable to decrypt message.";
                 }
-
-                // Verify signature if available
-                let signatureStatus = "";
-                if (msg.signature && msg.sender_public_key) {
-                    try {
-                        const senderPubKey = await importRsaPublicKeyForVerify(msg.sender_public_key);
-                        const signatureBuffer = base64ToArrayBuffer(msg.signature);
-
-                        const isValidSignature = await window.crypto.subtle.verify(
-                            { name: "RSA-PSS", saltLength: 32 },
-                            senderPubKey,
-                            signatureBuffer,
-                            new TextEncoder().encode(decryptedText)
-                        );
-
-                        signatureStatus = isValidSignature ? " ✓" : " ⚠!!!!";
-                    } catch (verifyError) {
-                        console.error("Signature verification failed:", verifyError);
-                        signatureStatus = " ??????";
-                    }
-                }
-
-                const div = document.createElement("div");
-                div.className = isCurrentUser ? "sent" : "received";
-
-                const messageText = `${msg.sender_username}: ${decryptedText}${signatureStatus}`;
-                div.textContent = messageText;
-
-                messagesDiv.appendChild(div);
-            } catch (renderError) {
-                console.error("Error rendering message:", renderError);
-                showError("Failed to render message");
+            } else {
+                displayContent = "⚠️ Message not fully encrypted/keys missing."; // Fallback if data is incomplete
             }
+
+            // Attempt signature verification
+            if (msg.signature && msg.sender_public_key && displayContent !== "🔐 Unable to decrypt message." && mySigningKeys && mySigningKeys.publicKey) {
+                try {
+                    const senderPubKey = await importRsaPublicKeyForVerify(msg.sender_public_key);
+                    const signatureBuffer = base64ToArrayBuffer(msg.signature);
+
+                    const isValidSignature = await window.crypto.subtle.verify(
+                        { name: "RSA-PSS", saltLength: 32 }, // SaltLength must match signing
+                        senderPubKey,
+                        signatureBuffer,
+                        new TextEncoder().encode(displayContent) // Signatures are over plaintext
+                    );
+
+                    signatureStatus = isValidSignature ? " ✓" : " ⚠️ Invalid Signature!";
+                } catch (verifyError) {
+                    console.error("Signature verification failed for message:", msg.id, verifyError);
+                    signatureStatus = " ❓ Signature Error";
+                }
+            } else if (msg.signature && !msg.sender_public_key) {
+                signatureStatus = " ❓ Sender public key missing for verification.";
+            }
+
+            textEl.textContent = `${displayContent}${signatureStatus}`;
+
+            div.appendChild(usernameEl);
+            div.appendChild(textEl);
+            div.appendChild(timeEl);
+            messagesDiv.appendChild(div);
         }
 
-        // ─── Single “submit” listener below ───
-
+        // --- Message Sending Logic ---
         messageForm.addEventListener("submit", async function(e) {
             e.preventDefault();
             const plaintext = messageInput.value.trim();
             if (!plaintext) return;
 
+            // Add console logs here to check the state of keys
+            console.log("myEncryptionKeys:", myEncryptionKeys);
+            console.log("mySigningKeys:", mySigningKeys);
+            console.log("partnerPublicKey:", partnerPublicKey);
+
+
+            if (!myEncryptionKeys || !myEncryptionKeys.publicKey) {
+                showError("Encryption keys not loaded. Cannot send encrypted messages.");
+                return;
+            }
+            if (!mySigningKeys || !mySigningKeys.privateKey) {
+                showError("Signing key not loaded. Cannot sign messages.");
+                return;
+            }
+            if (!partnerPublicKey) {
+                showError("Partner's public key not loaded. Cannot encrypt messages.");
+                return;
+            }
+
             try {
-                // 1) Load our own private key (stored in localStorage)
-                const privPemLocal = localStorage.getItem("private_key_pem");
-                if (!privPemLocal) {
-                    showError("Private key missing");
-                    return;
-                }
-                const myPrivKey = await importRsaPrivateKey(privPemLocal);
+                // 1) Generate AES key and encrypt the message with it
+                const aesKey = generateAESKey();
+                const aesEncrypted = await encryptWithAES(aesKey, plaintext);
 
-                // 2) Get partner_id (must have been saved by checkChatReady)
-                const partnerId = localStorage.getItem("partner_id");
-                if (!partnerId) {
-                    showError("Partner ID missing");
-                    return;
-                }
-
-                // 3) Fetch partner’s public key from server
-                const respPub = await fetch("/chat/get-public-key/" + partnerId + "/", {
-                    headers: { "Authorization": "Token " + token }
-                });
-                if (!respPub.ok) {
-                    showError("Failed to get partner's public key");
-                    return;
-                }
-                const partnerPubPem = await respPub.text();
-                const partnerPubKey = await importRsaPublicKeyForEncrypt(partnerPubPem);
-
-                // 4) Encrypt the plaintext
-                const encryptedArrayBuffer = await window.crypto.subtle.encrypt(
+                // 2) Encrypt the AES key with partner's RSA-OAEP public key
+                const encryptedAESKey = await window.crypto.subtle.encrypt(
                     { name: "RSA-OAEP" },
-                    partnerPubKey,
-                    new TextEncoder().encode(plaintext)
+                    partnerPublicKey, // Use the partner's loaded public key
+                    aesKey
                 );
 
-                // 5) Sign the plaintext (using RSA-PSS)
-                const signingKeyPair = await window.crypto.subtle.generateKey(
-                    {
-                        name: "RSA-PSS",
-                        modulusLength: 2048,
-                        publicExponent: new Uint8Array([1, 0, 1]),
-                        hash: "SHA-256"
-                    },
-                    true,
-                    ["sign"]
-                );
+                // 3) Sign the plaintext message (using our RSA-PSS private key)
                 const signatureBuffer = await window.crypto.subtle.sign(
-                    { name: "RSA-PSS", saltLength: 32 },
-                    signingKeyPair.privateKey,
+                    { name: "RSA-PSS", saltLength: 32 }, // SaltLength must match during verification
+                    mySigningKeys.privateKey, // Use our stored RSA-PSS private key
                     new TextEncoder().encode(plaintext)
                 );
 
-                // 6) Base64‐encode both ciphertext and signature
-                const encryptedB64 = arrayBufferToBase64(encryptedArrayBuffer);
-                const sigB64       = arrayBufferToBase64(signatureBuffer);
+                // 4) Base64-encode everything for transport
+                const encryptedAESKeyB64 = arrayBufferToBase64(encryptedAESKey);
+                const sigB64 = arrayBufferToBase64(signatureBuffer);
 
-                // 7) POST to /chat/send-message/{chatId}/
+                // 5) POST to /chat/send-message/{chatId}/ with hybrid encryption data
                 const sendResp = await fetch("/chat/send-message/" + chatId + "/", {
                     method: "POST",
                     headers: {
@@ -690,25 +861,29 @@
                         "Authorization": "Token " + token
                     },
                     body: JSON.stringify({
-                        encrypted_text: encryptedB64,
-                        signature:      sigB64
+                        encrypted_text: aesEncrypted.ciphertext,
+                        encrypted_symmetric_key: encryptedAESKeyB64,
+                        aes_nonce: aesEncrypted.nonce,
+                        aes_tag: aesEncrypted.tag,
+                        signature: sigB64
                     })
                 });
 
-                if (!sendResp.ok) {
-                    showError("Failed to send message");
-                    return;
+                if (sendResp.ok) {
+                    messageInput.value = "";
+                    // Immediately fetch new messages to show our sent message and any received ones
+                    await fetchNewMessages();
+                } else {
+                    const errorData = await sendResp.json().catch(() => ({ message: "Unknown error" }));
+                    showError(`Failed to send message: ${errorData.message || sendResp.statusText}`);
                 }
-
-                // 8) Clear input on success
-                messageInput.value = "";
             } catch (sendError) {
                 console.error("Send message error:", sendError);
-                showError("Failed to send message");
+                showError("Failed to send message due to a cryptographic error.");
             }
         });
 
-        // Leave chat functionality
+        // --- Leave Chat Functionality ---
         leaveButton.addEventListener("click", async function() {
             if (confirm("Are you sure you want to leave this chat?")) {
                 await leaveChat();
@@ -717,34 +892,50 @@
 
         async function leaveChat() {
             try {
-                await fetch("/chat/leave-chat/" + chatId + "/", {
+                // Note: Django `LeaveChatView` expects chat_id in body for POST,
+                // but the old frontend sent it in URL. Check your Django urls.py and views.py.
+                // Assuming it expects it in the body now:
+                const resp = await fetch("/chat/leave-chat/", { // Adjusted endpoint based on your backend logic
                     method: "POST",
-                    headers: { "Authorization": "Token " + token }
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": "Token " + token
+                    },
+                    body: JSON.stringify({ chat_id: chatId }) // Sending chat_id in body
                 });
+
+                if (!resp.ok) {
+                    console.warn("Server responded with error while leaving chat:", resp.status, await resp.text());
+                }
             } catch (err) {
                 console.error("Error leaving chat:", err);
             } finally {
+                localStorage.removeItem('chat_id'); // Clear local chat state
+                localStorage.removeItem('partner');
+                localStorage.removeItem('partner_id');
                 clearInterval(pollInterval);
-                window.location.href = "/";
+                window.location.href = "/"; // Redirect to home/login page
             }
         }
 
-        // Handle page unload
-        window.addEventListener("beforeunload", async function() {
+        // Handle page unload (attempt to leave chat gracefully)
+        window.addEventListener("beforeunload", async function(event) {
             if (pollInterval) {
                 clearInterval(pollInterval);
             }
-            try {
-                await fetch("/chat/leave-chat/" + chatId + "/", {
-                    method: "POST",
-                    headers: { "Authorization": "Token " + token }
-                });
-            } catch (err) {
-                console.error("Error on page unload:", err);
+            // Note: Sending an async request on beforeunload can be unreliable
+            // Browsers may cancel it if the page unloads too quickly.
+            // A small delay or synchronous call (not recommended for UX) might be needed for critical actions.
+            // For now, keep it as is, but be aware.
+            if (chatId && token) { // Only attempt if user is in an active chat
+                navigator.sendBeacon("/chat/leave-chat/", JSON.stringify({ chat_id: chatId }));
+                // sendBeacon is better for unload events as it doesn't block the main thread.
+                // It requires the backend to handle application/json for sendBeacon.
             }
         });
 
-        // Start the chat application
+
+        // --- Initial Call to Start the Application ---
         startChat();
     })();
 </script>
