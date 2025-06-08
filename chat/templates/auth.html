@@ -69,8 +69,19 @@
         }
         .btn i { margin-right:0.5em; }
         .btn:hover { transform: scale(1.05); box-shadow: var(--glow-strong); }
-        #status, #login-error { text-align:center; margin-top:0.5rem; font-size:0.9rem; }
-        #login-error { color: #ff3366; }
+        #status {
+        display: none;
+        text-align: center;
+        margin-top: 0.5rem;
+        font-size: 0.95rem;
+        padding: 0.5rem;
+        border-radius: 6px;
+        background-color: rgba(0, 229, 255, 0.07); /* subtle translucent cyan */
+        border: 1px solid var(--accent-cyan);
+        color: var(--accent-cyan);
+        box-shadow: 0 0 8px var(--accent-cyan);
+        transition: all 0.3s ease;
+        }
         /* Responsive */
         @media (max-width: 450px) {
             h1 { font-size:2rem; }
@@ -110,11 +121,12 @@
     return /^[a-zA-Z0-9_]+$/.test(text);
     }
 
-    function printStatus(message, color = "#0066cc") {
-        const statusDiv = document.getElementById("status");
-        statusDiv.innerText = message;
-        statusDiv.style.color = color;
-    }
+   function printStatus(message, color = "#00e5ff") {
+    const statusDiv = document.getElementById("status");
+    statusDiv.innerText = message;
+    statusDiv.style.color = color;
+    statusDiv.style.display = "block";
+}
 
     function resetInputs() {
         document.querySelectorAll("input").forEach((input) => {
@@ -158,13 +170,11 @@
     const username = document.getElementById("login-username").value;
     const password = document.getElementById("login-password").value;
 
-    // —— Client-side validation ——
     if (!isValidInput(username)) {
         printStatus("Username can only contain letters, numbers, and underscores.", "red");
         return;
     }
 
-    // —— Helper to call your login endpoint, optionally with an OTP code ——
     async function attemptLogin(otp_code) {
         const payload = { username, password };
         if (otp_code !== undefined) payload.otp_code = otp_code;
@@ -180,10 +190,8 @@
     }
 
     try {
-        // 1) First attempt without OTP
         let { res, json } = await attemptLogin();
 
-        // 2) If the server demands 2FA, prompt and retry
         if (!res.ok && json.detail && json.detail.toLowerCase().includes("2fa")) {
             const otp = prompt("Enter your 2FA code from Google Authenticator:");
             if (otp) {
@@ -191,20 +199,21 @@
             }
         }
 
-        // 3) Final outcome
         if (res.ok) {
             localStorage.setItem("token", json.token);
             printStatus("Login successful!", "green");
             resetInputs();
             window.location.href = "/chat/usermenu/";
         } else {
-            printStatus("Login failed: " + (json.detail || "Unknown error."), "red");
+            const errorMsg = json.message || json.detail || "Unknown error.";
+            printStatus("Login failed: " + errorMsg, "red");
         }
     } catch (err) {
         console.error("Login flow error:", err);
         printStatus("An error occurred during login.", "red");
     }
 });
+
 </script>
 </body>
 </html>
