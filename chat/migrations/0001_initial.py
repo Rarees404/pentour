@@ -16,7 +16,7 @@ class Migration(migrations.Migration):
     dependencies = [
         ('auth', '0012_alter_user_first_name_max_length'),
     ]
-
+#There were some fields we didn't need please change them when you are doen!
     operations = [
         migrations.CreateModel(
             name='User',

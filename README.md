@@ -5,7 +5,7 @@ Messages are **always stored encrypted** in the database and **decrypted using t
 
 ---
 
-## 🔧 Setup Instructions
+# ``Setup Instructions``
 
 ### 1. Clone the Repository
 
@@ -170,7 +170,7 @@ python manage.py runserver
 
 ---
 
-## 🚀 Access the App
+# ``Access the App``
 
 Once the server is running, open your browser and navigate to:
 For more information read the "Developer Notes"
@@ -178,7 +178,7 @@ For more information read the "Developer Notes"
 
 ---
 
-## 🧠 Developer Notes
+# ```!!Developer Notes!!```
 
 > For testing purposes, we **recommend using an incognito/private browser window**.  
 This ensures that localStorage (tokens/keys) is cleared between user sessions.  
