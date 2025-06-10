@@ -790,7 +790,7 @@
                 localStorage.removeItem('partner');
                 localStorage.removeItem('partner_id');
                 clearInterval(pollInterval);
-                window.location.href = "/"; // Redirect to home/login page
+                window.location.href = '/'; // Redirect to home/login page
             }
         }
 
@@ -799,10 +799,6 @@
             if (pollInterval) {
                 clearInterval(pollInterval);
             }
-            // Note: Sending an async request on beforeunload can be unreliable
-            // Browsers may cancel it if the page unloads too quickly.
-            // A small delay or synchronous call (not recommended for UX) might be needed for critical actions.
-            // For now, keep it as is, but be aware.
             if (chatId && token) { // Only attempt if user is in an active chat
                 navigator.sendBeacon("/chat/leave-chat/", JSON.stringify({ chat_id: chatId }));
                 // sendBeacon is better for unload events as it doesn't block the main thread.

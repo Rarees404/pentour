@@ -19,19 +19,19 @@ from .views import (
 )
 
 urlpatterns = [
-    # 1) Registration & Login
+    # Registration & Login
     path("register/", RegisterUserView.as_view(), name="register"),
     path("login/", LoginView.as_view(), name="login"),
 
-    # 2) User Menu (renders usermenu.html)
+    #  User Menu (renders usermenu.html)
     path("usermenu/", user_menu, name="user_menu"),
 
-    # 3) 2FA setup route (keep this exactly as before)
+    # 2FA setup route (keep this exactly as before)
     path("2fa/setup/", setup_2fa, name="setup_2fa"),
     path("get-public-key/<int:user_id>/", GetPublicKeyView.as_view(), name="get-public-key"),
 
     path("upload-public-key/",UploadPublicKeyView.as_view(),name="upload_public_key"),
-    # 4) Chat‐related API endpoints
+    #  Chat‐related API endpoints
     path("check-chat/",     CheckChatView.as_view(),    name="check-chat"),
     path(
         "leave-chat/",
@@ -44,9 +44,9 @@ urlpatterns = [
     path("create-chat/",    CreateChatView.as_view(),   name="create-chat"),
     path("join-chat/",      JoinChatView.as_view(),     name="join-chat"),
 
-    # 5) Chatbox page (renders chatbox.html)
+    # Chatbox page (renders chatbox.html)
     path("chatbox/", chatbox, name="chatbox"),
 
-    # 6) Root of /chat/ serves your auth page (login/register form)
+    #  Root of /chat/ serves your auth page (login/register form)
     path("", views.auth_page, name="auth_page"),
 ]

@@ -7,10 +7,15 @@ Messages are **always stored encrypted** in the database and **decrypted using t
 
 ## 🔧 Setup Instructions
 
-### 1. Clone the Repository
+### 1. Clone the Repository 
+
 
 ```bash
-git clone //repo link
+git clone https://github.com/Rarees404/pentour.git
+
+For server-side version: git switch Final_Product
+For client-side version: git switch Final_ClientSide
+
 cd pentour
 ```
 
@@ -180,9 +185,10 @@ For more information read the "Developer Notes"
 
 ## 🧠 Developer Notes
 
-> For testing purposes, we **recommend using an incognito/private browser window**.  
+> For testing purposes, we **recommend using an incognito/private tabs on different browser windows**.  
 This ensures that localStorage (tokens/keys) is cleared between user sessions.  
 If you're creating a new user after logout, make sure to open a new incognito window.
+>
 
 If you encounter errors during setup or usage, feel free to contact the developer:
 

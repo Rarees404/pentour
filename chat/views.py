@@ -361,6 +361,9 @@ class LeaveChatView(APIView):
         except Chat.DoesNotExist:
             return Response({"message": "Chat not found."}, status=status.HTTP_404_NOT_FOUND)
 
+        user = request.user
+        partner = chat.user2 if(chat.user1==user) else chat.user1
+
         # Remove user from chat
         if chat.user1 == request.user:
             chat.user1 = None
@@ -381,7 +384,11 @@ class LeaveChatView(APIView):
             # Update in-memory tracking
             if chat_id in active_chats and request.user in active_chats[chat_id]:
                 active_chats[chat_id].remove(request.user)
-
+        if partner:
+            Message.objects.filter(
+                (Q(sender=user) & Q(receiver=partner)) |
+                (Q(sender = partner) & Q(receiver=user))
+            ).delete()
         logger.info(f"[LEAVE-CHAT] User '{request.user.username}' left chat '{chat_id}'.")
         return Response({"message": "Left chat."}, status=status.HTTP_200_OK)
 
@@ -396,7 +403,7 @@ class GetPublicKeyView(APIView):
       }
     """
     authentication_classes = [TokenAuthentication]
-    permission_classes     = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request, user_id, *args, **kwargs):
         # Look up the target user
@@ -420,7 +427,7 @@ class GetPublicKeyView(APIView):
 
 class SendMessageView(APIView):
     authentication_classes = [TokenAuthentication]
-    permission_classes     = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request, chat_id=None):
         chat = get_object_or_404(Chat, pin=chat_id)
@@ -429,12 +436,12 @@ class SendMessageView(APIView):
             return Response({"detail": "Forbidden"}, status=403)
 
         # Extract ALL required cryptographic fields
-        encrypted_text                 = request.data.get("encrypted_text")
-        encrypted_symmetric_key        = request.data.get("encrypted_symmetric_key")
+        encrypted_text = request.data.get("encrypted_text")
+        encrypted_symmetric_key = request.data.get("encrypted_symmetric_key")
         sender_encrypted_symmetric_key = request.data.get("sender_encrypted_symmetric_key")
-        aes_nonce                      = request.data.get("aes_nonce")
-        aes_tag                        = request.data.get("aes_tag")
-        signature                      = request.data.get("signature")
+        aes_nonce = request.data.get("aes_nonce")
+        aes_tag = request.data.get("aes_tag")
+        signature = request.data.get("signature")
 
         # Validate presence
         if not all([encrypted_text,
@@ -499,7 +506,7 @@ class GetMessagesView(APIView):
         return Response({
             "messages":     serializer_data,
             "partner":      partner.username if partner else None,
-            "partner_id":   partner.id       if partner else None,
+            "partner_id":   partner.id if partner else None,
             "current_user": me.username,
             "both_joined":  bool(chat.user1 and chat.user2),
         }, status=status.HTTP_200_OK)
