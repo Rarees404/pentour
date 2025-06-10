@@ -162,7 +162,9 @@ pip install colorlog django-postgrespool2 pillow channels==4.2.0 channels_redis 
 ### 7. Apply Migrations
 
 ```bash
+python manage.py makemigrations
 python manage.py migrate
+do empty the db: python manage.py flush
 ```
 
 ---
