@@ -63,6 +63,8 @@ brew install postgresql
 initdb /usr/local/var/postgres
 brew services start postgresql
 brew services status postgresql
+brew services stop postgresql //stop server after finish
+
 ```
 
 **Option C (Linux/Ubuntu):**
@@ -70,6 +72,7 @@ brew services status postgresql
 sudo apt update
 sudo apt install postgresql postgresql-contrib
 sudo service postgresql start
+sudo service postgresql stop //stop the server after you finish
 ```
 
 ---
