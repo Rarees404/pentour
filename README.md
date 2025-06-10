@@ -5,12 +5,17 @@ Messages are **always stored encrypted** in the database and **decrypted using t
 
 ---
 
-# ``Setup Instructions``
+## 🔧 Setup Instructions
 
-### 1. Clone the Repository
+### 1. Clone the Repository 
+
 
 ```bash
-git clone //repo link
+git clone https://github.com/Rarees404/pentour.git
+
+For server-side version: git switch Final_Product
+For client-side version: git switch Final_ClientSide
+
 cd pentour
 ```
 
@@ -58,6 +63,8 @@ brew install postgresql
 initdb /usr/local/var/postgres
 brew services start postgresql
 brew services status postgresql
+brew services stop postgresql //stop server after finish
+
 ```
 
 **Option C (Linux/Ubuntu):**
@@ -65,6 +72,7 @@ brew services status postgresql
 sudo apt update
 sudo apt install postgresql postgresql-contrib
 sudo service postgresql start
+sudo service postgresql stop //stop the server after you finish
 ```
 
 ---
@@ -103,7 +111,7 @@ CREATE DATABASE my_database
   LC_CTYPE = 'en_US.UTF-8'
   TEMPLATE = template0;
 ```
-
+If during the commands execution you notice a change (postgres=#   ->  postgres-#) type \r. 
 After creating the role, you should see:
 ```
 CREATE ROLE
@@ -157,7 +165,9 @@ pip install colorlog django-postgrespool2 pillow channels==4.2.0 channels_redis 
 ### 7. Apply Migrations
 
 ```bash
+python manage.py makemigrations
 python manage.py migrate
+do empty the db: python manage.py flush
 ```
 
 ---
@@ -170,7 +180,7 @@ python manage.py runserver
 
 ---
 
-# ``Access the App``
+## 🚀 Access the App
 
 Once the server is running, open your browser and navigate to:
 For more information read the "Developer Notes"
@@ -178,11 +188,12 @@ For more information read the "Developer Notes"
 
 ---
 
-# ```!!Developer Notes!!```
+## 🧠 Developer Notes
 
-> For testing purposes, we **recommend using an incognito/private browser window**.  
+> For testing purposes, we **recommend using an incognito/private tabs on different browser windows**.  
 This ensures that localStorage (tokens/keys) is cleared between user sessions.  
 If you're creating a new user after logout, make sure to open a new incognito window.
+>
 
 If you encounter errors during setup or usage, feel free to contact the developer:
 
