@@ -55,6 +55,7 @@ class Message(models.Model):
     )
     encrypted_text = models.TextField()
     encrypted_symmetric_key = models.TextField(null=True, blank=True)
+    sender_encrypted_symmetric_key = models.TextField(null=True, blank=True)  # ← new!
     aes_nonce = models.TextField(null=True, blank=True)
     aes_tag = models.TextField(null=True, blank=True)
     signature = models.TextField(null=True, blank=True)

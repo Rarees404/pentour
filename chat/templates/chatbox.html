@@ -597,6 +597,8 @@
                 }
 
                 const data = await resp.json();
+                console.log(" fetched messages:", data.messages);
+                data.messages.forEach(msg => renderProcessedMessage(msg, data.current_user));
 
                 if (data.partner && data.partner !== partnerUsername) {
                     partnerUsername = data.partner;
@@ -628,55 +630,50 @@
             const bubble = document.createElement("div");
             bubble.classList.add("message", isCurrentUser ? "current-user" : "other-user");
 
-            // Header row: username + timestamp
+            // Header row
             const header = document.createElement("div");
             header.className = "message-header";
-
             const userEl = document.createElement("div");
             userEl.className = "message-username";
             userEl.textContent = isCurrentUser ? "You" : msg.sender_username;
-
             const timeEl = document.createElement("div");
             timeEl.className = "message-timestamp";
             timeEl.textContent = new Date(msg.timestamp).toLocaleTimeString();
+            header.append(userEl, timeEl);
 
-            header.appendChild(userEl);
-            header.appendChild(timeEl);
-
-            // Decrypt message into displayContent (your existing logic)
             let displayContent = "";
             try {
-                // 1) Unwrap AES key
+                // 1) Pick the right wrapped key — new field first, then fallback
+                const wrappedKeyB64 = isCurrentUser
+                    ? (msg.sender_encrypted_symmetric_key || msg.encrypted_symmetric_key)
+                    : msg.encrypted_symmetric_key;
+                if (!wrappedKeyB64) throw new Error("No wrapped AES key available");
+
+                // 2) RSA-OAEP unwrap with *your* private key
                 const aesKeyBuf = await window.crypto.subtle.decrypt(
                     { name: "RSA-OAEP" },
                     myEncryptionKeys.privateKey,
-                    base64ToArrayBuffer(msg.encrypted_symmetric_key)
+                    base64ToArrayBuffer(wrappedKeyB64)
                 );
-                // 2) AES-GCM decrypt
+
+                // 3) AES-GCM decrypt
                 displayContent = await decryptWithAES(new Uint8Array(aesKeyBuf), {
                     ciphertext: msg.encrypted_text,
-                    nonce: msg.aes_nonce,
-                    tag: msg.aes_tag
+                    nonce:      msg.aes_nonce,
+                    tag:        msg.aes_tag
                 });
             } catch (e) {
-                console.error("Decryption failed for message:", msg.id, e);
-                // Leave displayContent empty to skip rendering
+                console.warn("Could not decrypt message", msg.id, e);
+                return;  // skip it
             }
 
-            // If nothing to show, bail out
-            if (!displayContent) return;
-
-            // Build text node
+            // render
             const textEl = document.createElement("div");
             textEl.textContent = displayContent;
-
-            // Assemble and attach to DOM
-            bubble.appendChild(header);
-            bubble.appendChild(textEl);
+            bubble.append(header, textEl);
             messagesDiv.appendChild(bubble);
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
         }
-
 
 
         // --- Message Sending Logic ---
@@ -685,17 +682,12 @@
             const plaintext = messageInput.value.trim();
             if (!plaintext) return;
 
-            // Add console logs here to check the state of keys
-            console.log("myEncryptionKeys:", myEncryptionKeys);
-            console.log("mySigningKeys:", mySigningKeys);
-            console.log("partnerPublicKey:", partnerPublicKey);
-
-
-            if (!myEncryptionKeys || !myEncryptionKeys.publicKey) {
+            // sanity checks
+            if (!myEncryptionKeys?.publicKey) {
                 showError("Encryption keys not loaded. Cannot send encrypted messages.");
                 return;
             }
-            if (!mySigningKeys || !mySigningKeys.privateKey) {
+            if (!mySigningKeys?.privateKey) {
                 showError("Signing key not loaded. Cannot sign messages.");
                 return;
             }
@@ -708,51 +700,61 @@
                 // 1) Generate AES key and encrypt the message with it
                 const aesKey = generateAESKey();
                 const aesEncrypted = await encryptWithAES(aesKey, plaintext);
+                //    -> { ciphertext, nonce, tag }
 
-                // 2) Encrypt the AES key with partner's RSA-OAEP public key
-                const encryptedAESKey = await window.crypto.subtle.encrypt(
+                // 2a) Wrap the AES key for the partner
+                const wrappedForPartner = await window.crypto.subtle.encrypt(
                     { name: "RSA-OAEP" },
-                    partnerPublicKey, // Use the partner's loaded public key
+                    partnerPublicKey,
+                    aesKey
+                );
+                // 2b) Wrap the AES key for yourself
+                const wrappedForSelf = await window.crypto.subtle.encrypt(
+                    { name: "RSA-OAEP" },
+                    myEncryptionKeys.publicKey,
                     aesKey
                 );
 
-                // 3) Sign the plaintext message (using our RSA-PSS private key)
+                // 3) Sign the plaintext message (RSA-PSS)
                 const signatureBuffer = await window.crypto.subtle.sign(
-                    { name: "RSA-PSS", saltLength: 32 }, // SaltLength must match during verification
-                    mySigningKeys.privateKey, // Use our stored RSA-PSS private key
+                    { name: "RSA-PSS", saltLength: 32 },
+                    mySigningKeys.privateKey,
                     new TextEncoder().encode(plaintext)
                 );
 
                 // 4) Base64-encode everything for transport
-                const encryptedAESKeyB64 = arrayBufferToBase64(encryptedAESKey);
-                const sigB64 = arrayBufferToBase64(signatureBuffer);
+                const partnerKeyB64 = arrayBufferToBase64(wrappedForPartner);
+                const selfKeyB64    = arrayBufferToBase64(wrappedForSelf);
+                const sigB64        = arrayBufferToBase64(signatureBuffer);
 
-                // 5) POST to /chat/send-message/{chatId}/ with hybrid encryption data
-                const sendResp = await fetch("/chat/send-message/" + chatId + "/", {
+                // 5) POST to /chat/send-message/{chatId}/ with both wrapped keys
+                const sendResp = await fetch(`/chat/send-message/${chatId}/`, {
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json",
                         "Authorization": "Token " + token
                     },
                     body: JSON.stringify({
-                        encrypted_text: aesEncrypted.ciphertext,
-                        encrypted_symmetric_key: encryptedAESKeyB64,
-                        aes_nonce: aesEncrypted.nonce,
-                        aes_tag: aesEncrypted.tag,
-                        signature: sigB64
+                        encrypted_text:                 aesEncrypted.ciphertext,
+                        encrypted_symmetric_key:        partnerKeyB64,  // for recipient
+                        sender_encrypted_symmetric_key: selfKeyB64,     // for you
+                        aes_nonce:                      aesEncrypted.nonce,
+                        aes_tag:                        aesEncrypted.tag,
+                        signature:                      sigB64
                     })
                 });
 
                 if (sendResp.ok) {
+                    // Clear input
                     messageInput.value = "";
-                    // Immediately fetch new messages to show our sent message and any received ones
+                    // Immediately refresh so you’ll see both your bubble and any new incoming ones
                     await fetchNewMessages();
                 } else {
-                    const errorData = await sendResp.json().catch(() => ({ message: "Unknown error" }));
+                    const errorData = await sendResp.json().catch(() => ({}));
                     showError(`Failed to send message: ${errorData.message || sendResp.statusText}`);
                 }
-            } catch (sendError) {
-                console.error("Send message error:", sendError);
+            } catch (err) {
+                console.error("Send message error:", err);
                 showError("Failed to send message due to a cryptographic error.");
             }
         });

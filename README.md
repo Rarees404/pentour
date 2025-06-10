@@ -103,7 +103,7 @@ CREATE DATABASE my_database
   LC_CTYPE = 'en_US.UTF-8'
   TEMPLATE = template0;
 ```
-
+If during the commands execution you notice a change (postgres=#   ->  postgres-#) type \r. 
 After creating the role, you should see:
 ```
 CREATE ROLE

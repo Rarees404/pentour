@@ -21,9 +21,10 @@ class UserSerializer(serializers.ModelSerializer):
 class MessageSerializer(serializers.ModelSerializer):
     sender_public_key = serializers.CharField(source="sender.public_key",         read_only=True)
     sender_signing_public_key = serializers.CharField(source="sender.signing_public_key", read_only=True)
+    sender_username = serializers.CharField(source="sender.username",       read_only=True)
 
     class Meta:
-        model  = Message
+        model = Message
         fields = [
             "id",
             "encrypted_text",
@@ -34,6 +35,8 @@ class MessageSerializer(serializers.ModelSerializer):
             "timestamp",
             "sender_public_key",
             "sender_signing_public_key",
+            "sender_encrypted_symmetric_key",
+            "sender_username",
         ]
 
     def get_is_current_user(self, obj):

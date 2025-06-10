@@ -420,50 +420,55 @@ class GetPublicKeyView(APIView):
 
 class SendMessageView(APIView):
     authentication_classes = [TokenAuthentication]
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes     = [permissions.IsAuthenticated]
 
     def post(self, request, chat_id=None):
         chat = get_object_or_404(Chat, pin=chat_id)
-
         me = request.user
-        if me != chat.user1 and me != chat.user2:
-            return Response({"detail": "Forbidden"}, status=status.HTTP_403_FORBIDDEN)
+        if me not in (chat.user1, chat.user2):
+            return Response({"detail": "Forbidden"}, status=403)
 
         # Extract ALL required cryptographic fields
-        encrypted_text = request.data.get("encrypted_text")
-        encrypted_symmetric_key = request.data.get("encrypted_symmetric_key")
-        aes_nonce = request.data.get("aes_nonce")
-        aes_tag = request.data.get("aes_tag")
-        signature = request.data.get("signature")
+        encrypted_text                 = request.data.get("encrypted_text")
+        encrypted_symmetric_key        = request.data.get("encrypted_symmetric_key")
+        sender_encrypted_symmetric_key = request.data.get("sender_encrypted_symmetric_key")
+        aes_nonce                      = request.data.get("aes_nonce")
+        aes_tag                        = request.data.get("aes_tag")
+        signature                      = request.data.get("signature")
 
-        # Validate that all crucial fields are present
-        if not all([encrypted_text, encrypted_symmetric_key, aes_nonce, aes_tag, signature]):
+        # Validate presence
+        if not all([encrypted_text,
+                    encrypted_symmetric_key,
+                    sender_encrypted_symmetric_key,
+                    aes_nonce,
+                    aes_tag,
+                    signature]):
             return Response(
                 {"message": "Missing required encryption fields."},
-                status=status.HTTP_400_BAD_REQUEST
+                status=400
             )
 
-        # Determine the recipient
+        # Determine the other party
         recipient = chat.user2 if (me == chat.user1) else chat.user1
 
-        # Create and save the Message with ALL cryptographic components
+        # Save **both** wrapped keys
         msg = Message.objects.create(
             sender=me,
-            receiver= recipient,
+            receiver=recipient,
             encrypted_text=encrypted_text,
             encrypted_symmetric_key=encrypted_symmetric_key,
+            sender_encrypted_symmetric_key=sender_encrypted_symmetric_key,
             aes_nonce=aes_nonce,
             aes_tag=aes_tag,
             signature=signature,
         )
 
-        serializer_data = MessageSerializer(msg).data
-        return Response(serializer_data, status=status.HTTP_201_CREATED)
+        return Response(MessageSerializer(msg).data, status=201)
 
 
 class GetMessagesView(APIView):
     authentication_classes = [TokenAuthentication]
-    permission_classes     = [permissions.IsAuthenticated]
+    permission_classes= [permissions.IsAuthenticated]
 
     def get(self, request, chat_id):
         """
