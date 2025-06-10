@@ -598,7 +598,7 @@
 
                 const data = await resp.json();
                 console.log(" fetched messages:", data.messages);
-                data.messages.forEach(msg => renderProcessedMessage(msg, data.current_user));
+                //data.messages.forEach(msg => renderProcessedMessage(msg, data.current_user));
 
                 if (data.partner && data.partner !== partnerUsername) {
                     partnerUsername = data.partner;
@@ -608,7 +608,7 @@
                     await loadPartnerPublicKey();
                 }
 
-                //await renderMessages(data.messages, data.current_user);
+                await renderMessages(data.messages, data.current_user);
             } catch (err) {
                 console.error("Error fetching new messages:", err);
             }
